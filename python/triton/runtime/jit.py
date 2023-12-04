@@ -577,7 +577,6 @@ class JITFunction(KernelInterface[T]):
             del kwargs[name]
             return ret
 
-        grid = get_special_arg("grid")
         num_warps = get_special_arg("num_warps")
         num_ctas = get_special_arg("num_ctas", 1)
         num_stages = get_special_arg("num_stages")
@@ -603,16 +602,6 @@ class JITFunction(KernelInterface[T]):
         constexpr_key = tuple(arg.value for arg in args if arg.param.is_constexpr)
 
         assert num_ctas > 0
-        assert grid is not None
-        if callable(grid):
-            # Arguments are passed as a dict to `grid`, by contract.
-            # TODO(jlebar): In the new launch API, pass the compiler flags as a
-            # second parameter to `grid`.
-            grid = grid(dict(bound_args.arguments))
-        grid_size = len(grid)
-        grid_0 = grid[0]
-        grid_1 = grid[1] if grid_size > 1 else 1
-        grid_2 = grid[2] if grid_size > 2 else 1
         if device_type is None:
             device_types = [self._device_of(arg) for arg in non_constexpr_arg_values]
             device_types = [_device_type for _device_type in device_types if _device_type != ""]
@@ -712,12 +701,16 @@ class JITFunction(KernelInterface[T]):
                 device_type=device_type,
             )
             print('Only compiled OK')
+            asm = self.cache[device][key].asm
+            return asm
+
+        raise RuntimeError("Kernel already compiled")
 
     def hack_cubin(self, *args, **kwargs):
         from ..compiler import CompiledKernel, compile, get_arch_default_num_stages, get_arch_default_num_warps
         cubin = kwargs.pop("cubin", None)
         if cubin is None:
-            raise ValueError("cubin must be specified")
+            raise RuntimeError("cubin must be specified")
 
         # Get a compiler-flags arg like `num_warps` and remove it from kwargs.
         def get_special_arg(name: str, default=None):
@@ -727,7 +720,6 @@ class JITFunction(KernelInterface[T]):
             del kwargs[name]
             return ret
 
-        grid = get_special_arg("grid")
         num_warps = get_special_arg("num_warps")
         num_ctas = get_special_arg("num_ctas", 1)
         num_stages = get_special_arg("num_stages")
@@ -753,16 +745,6 @@ class JITFunction(KernelInterface[T]):
         constexpr_key = tuple(arg.value for arg in args if arg.param.is_constexpr)
 
         assert num_ctas > 0
-        assert grid is not None
-        if callable(grid):
-            # Arguments are passed as a dict to `grid`, by contract.
-            # TODO(jlebar): In the new launch API, pass the compiler flags as a
-            # second parameter to `grid`.
-            grid = grid(dict(bound_args.arguments))
-        grid_size = len(grid)
-        grid_0 = grid[0]
-        grid_1 = grid[1] if grid_size > 1 else 1
-        grid_2 = grid[2] if grid_size > 2 else 1
         if device_type is None:
             device_types = [self._device_of(arg) for arg in non_constexpr_arg_values]
             device_types = [_device_type for _device_type in device_types if _device_type != ""]
