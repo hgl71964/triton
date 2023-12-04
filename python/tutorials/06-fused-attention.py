@@ -11,6 +11,9 @@ Extra Credits:
 
 """
 
+import setproctitle
+setproctitle.setproctitle('hey guys')
+
 import pytest
 import torch
 
@@ -453,6 +456,8 @@ class _attention(torch.autograd.Function):
         if torch.cuda.get_device_capability()[0] == 9:
             num_warps = 8
             num_stages = 7 if Lk >= 64 else 3
+
+        # q, k, v: (Z, H, N_CTX, D_HEAD)
         grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         M = torch.empty((q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         _attn_fwd[grid](
@@ -533,6 +538,9 @@ def test_op(Z, H, N_CTX, D_HEAD, causal, dtype=torch.float16):
     q = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
     k = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
     v = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
+
+    print(f"stride: {q.stride()}, {k.stride()}, {v.stride()}")
+
     sm_scale = 0.5
     dout = torch.randn_like(q)
     # reference implementation
@@ -568,6 +576,9 @@ except BaseException:
     HAS_FLASH = False
 
 TORCH_HAS_FP8 = hasattr(torch, 'float8_e5m2')
+
+print(f"use flash: {HAS_FLASH}; use fp8: {TORCH_HAS_FP8}")
+
 BATCH, N_HEADS, N_CTX, D_HEAD = 4, 48, 4096, 64
 # vary seq length for fixed head and batch=4
 configs = []
@@ -633,4 +644,4 @@ def bench_flash_attention(BATCH, H, N_CTX, D_HEAD, causal, mode, provider, dtype
 
 
 # only works on post-Ampere GPUs right now
-bench_flash_attention.run(save_path=".", print_data=True)
+bench_flash_attention.run(save_path="./data/viz", print_data=True)

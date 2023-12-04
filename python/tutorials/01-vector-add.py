@@ -83,6 +83,10 @@ torch.manual_seed(0)
 size = 98432
 x = torch.rand(size, device='cuda')
 y = torch.rand(size, device='cuda')
+output = torch.empty_like(x)
+n_elements = output.numel()
+print(f"n_elements = {n_elements}")
+
 output_torch = x + y
 output_triton = add(x, y)
 print(output_torch)

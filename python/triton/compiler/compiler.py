@@ -640,6 +640,9 @@ class CompiledKernel:
         self.metadata = metadata
         self.cu_module = None
         self.cu_function = None
+    
+    def hack_cubin(self, cubin):
+        self.asm["cubin"] = cubin
 
     def _init_handles(self):
         if self.cu_module is not None:
