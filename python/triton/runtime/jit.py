@@ -544,6 +544,7 @@ class JITFunction(KernelInterface[T]):
                 debug=self.debug,
                 device_type=device_type,
             )
+            print('JIT compile')
 
         bin = self.cache[device][key]
         if not warmup:
@@ -701,6 +702,7 @@ class JITFunction(KernelInterface[T]):
                 device_type=device_type,
             )
             print('Only compiled OK')
+            # print(key)
             asm = self.cache[device][key].asm
             return asm
 
