@@ -236,6 +236,7 @@ def attn_forward(q, k, v, causal, sm_scale):
         num_warps=num_warps,  #
         num_stages=num_stages  #
     )
+    return o
 
 def get_cubin(q, k, v, causal, sm_scale):
     # shape constraints
@@ -293,7 +294,7 @@ def set_cubin(q, k, v, causal, sm_scale, cubin):
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
     M = torch.empty((q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
-    asm = _attn_fwd.hack_cubin(
+    _attn_fwd.hack_cubin(
         q, k, v, sm_scale, M, o,  #
         q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
         k.stride(0), k.stride(1), k.stride(2), k.stride(3),  #
@@ -348,7 +349,86 @@ def main(_):
         _ = get_cubin(q, k, v, causal, sm_scale)  # this populate the cache with the same key
         set_cubin(q, k, v, causal, sm_scale, cubin)
 
-    ## TEST TODO
+    ## TEST 
+    tri_out = attn_forward(q, k, v, causal, sm_scale).half()
+
+    # reference implementation
+    M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
+    p = torch.matmul(q, k.transpose(2, 3)) * sm_scale
+    if causal:
+        p[:, :, M == 0] = float("-inf")
+    p = torch.softmax(p.float(), dim=-1).half()
+    ref_out = torch.matmul(p, v)
+
+    assert torch.allclose(ref_out, tri_out, atol=1e-2, rtol=0)
+
+    ## BENCH
+    BATCH, N_HEADS, N_CTX, D_HEAD = 4, 48, 4096, 64
+    HAS_FLASH = False
+    TORCH_HAS_FP8 = False
+    configs = []
+    # for mode in ["fwd", "bwd"]:
+    for mode in ["fwd"]:
+        for causal in [True, False]:
+            if mode == "bwd" and not causal:
+                continue
+            configs.append(
+                triton.testing.Benchmark(
+                    x_names=["N_CTX"],
+                    x_vals=[2**i for i in range(10, 15)],
+                    line_arg="provider",
+                    line_vals=["triton"] + (["flash"] if HAS_FLASH else []),
+                    line_names=["Triton"] + (["Flash-2"] if HAS_FLASH else []),
+                    styles=[("red", "-"), ("blue", "-")],
+                    ylabel="ms",
+                    plot_name=f"fused-attention-batch{BATCH}-head{N_HEADS}-d{D_HEAD}-{mode}-causal={causal}",
+                    args={
+                        "H": N_HEADS,
+                        "BATCH": BATCH,
+                        "D_HEAD": D_HEAD,
+                        "dtype": torch.float16,
+                        "mode": mode,
+                        "causal": causal,
+                    },
+                ))
+
+
+    @triton.testing.perf_report(configs)
+    def bench_flash_attention(BATCH, H, N_CTX, D_HEAD, causal, mode, provider, dtype=torch.float16, device="cuda"):
+        assert mode in ["fwd", "bwd"]
+        warmup = 25
+        rep = 100
+        if provider == "triton":
+            q = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
+            k = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
+            if mode == "fwd" and TORCH_HAS_FP8:
+                q = q.to(torch.float8_e5m2)
+                k = k.to(torch.float8_e5m2)
+            v = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
+            sm_scale = 1.3
+            fn = lambda: attn_forward(q, k, v, causal, sm_scale)
+            if mode == "bwd":
+                o = fn()
+                do = torch.randn_like(o)
+                fn = lambda: o.backward(do, retain_graph=True)
+            ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+        if provider == "flash":
+            raise 
+            qkv = torch.randn((BATCH, N_CTX, 3, H, D_HEAD), dtype=dtype, device=device, requires_grad=True)
+            fn = lambda: flash_attn_func(qkv, causal=causal)
+            if mode == "bwd":
+                o = fn()
+                do = torch.randn_like(o)
+                fn = lambda: o.backward(do, retain_graph=True)
+            ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+        flops_per_matmul = 2.0 * BATCH * H * N_CTX * N_CTX * D_HEAD
+        total_flops = 2 * flops_per_matmul
+        if causal:
+            total_flops *= 0.5
+        if mode == "bwd":
+            total_flops *= 2.5  # 2.0(bwd) + 0.5(recompute)
+        return total_flops / ms * 1e-9
+    bench_flash_attention.run(print_data=True)
 
 
 
