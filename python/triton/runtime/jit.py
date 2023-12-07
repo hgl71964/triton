@@ -544,7 +544,12 @@ class JITFunction(KernelInterface[T]):
                 debug=self.debug,
                 device_type=device_type,
             )
-            print('JIT compile')
+            # we should not see JIT compile here,
+            # because we only substitute cubin
+            # if we see this frequently, it means something is wrong
+            warn='\033[93m'
+            end='\033[0m'
+            print(f"{warn}JIT compile{end}")
 
         bin = self.cache[device][key]
         if not warmup:
