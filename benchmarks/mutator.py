@@ -16,6 +16,26 @@ from CuAsm.CubinFile import CubinFile
 class Sample:
     def __init__(self, kernel_section: list[str]):
         self.kernel_section = kernel_section
+
+    def __eq__(self, other):
+        if not isinstance(other, Sample):
+            return False
+        if not len(self.kernel_section) == len(other.kernel_section):
+            return False
+
+        # an optimization for approximate equality
+        # for i in range(len(self.kernel_section)):
+        for i in range(1000):  
+            if i > len(self.kernel_section):
+                break
+            if not self.kernel_section[i] == other.kernel_section[i]:
+                return False
+        return True 
+
+    def __hash__(self):
+        # approximate hash
+        concatenated_string = ''.join(self.kernel_section[:1000])
+        return hash(concatenated_string)
     
     def get_mutable(self) -> list[int]:
         # determine which lines are possible to mutate
@@ -27,7 +47,7 @@ class Sample:
             # skip headers
             if len(line) > 0 and line[0]=='[':  
                 _, _, opcode, _, _ = self.decode(line)
-                if opcode in ['LDG', 'STG', 'LDS']:
+                if opcode in ['LDG', 'STG', 'LDS', 'LDSM']:
                     self.candidates.append(i)
         
         # dimension of the optimization problem
@@ -161,6 +181,7 @@ class MutationEngine:
     def create_sample(self):
         return Sample(self.kernel_section)
 
+    @lru_cache(maxsize=1000)
     def get_perf(self, sample: Sample):
         mutated_kernel = deepcopy(sample.kernel_section)
         mutated_sass = deepcopy(self.sass)

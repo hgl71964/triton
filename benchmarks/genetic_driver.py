@@ -12,7 +12,7 @@ from CuAsm.CubinFile import CubinFile
 
 # utils
 from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
-from mutator import MutationEngine
+from mutator import MutationEngine, Sample
 
 from absl import app
 from absl import flags
@@ -34,7 +34,7 @@ flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
 
 
-def create_population(pop_size: int, eng: MutationEngine):
+def create_population(pop_size: int, eng: MutationEngine) -> list[Sample]:
     population = []
     for _ in range(pop_size):
         sample = eng.create_sample()
@@ -44,7 +44,7 @@ def create_population(pop_size: int, eng: MutationEngine):
         population.append(sample)
     return population
 
-def tournament_selection(population, tournament_size, perf_func):
+def tournament_selection(population: list[Sample], tournament_size, perf_func) -> list[Sample]:
     selected = []
     for _ in range(len(population)):
         tournament = random.sample(population, tournament_size)
