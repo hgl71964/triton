@@ -11,20 +11,6 @@ import triton
 import triton.language as tl
 from triton.runtime.jit import JITFunction
 
-from absl import app
-from absl import flags
-
-FLAGS = flags.FLAGS
-
-# flags.DEFINE_string("default_out_path", "data", "output dir")
-# flags.DEFINE_integer("dump", 0, "whether to dump")
-# flags.DEFINE_integer("hack", 0, "whether to hack")
-# flags.DEFINE_string("fn", None, "cubin name to load")
-# flags.DEFINE_integer("flash", 0, "whether to use flash attention")
-# flags.DEFINE_integer("epoch", 1000, "mutation iteration")
-# flags.DEFINE_integer("seed", 1337, "")
-
-
 @triton.jit
 def _attn_fwd_inner(acc, l_i, m_i, q,  #
                     K_block_ptr, V_block_ptr,  #
@@ -275,55 +261,3 @@ def set_cubin(q, k, v, causal, sm_scale, cubin):
         num_stages=num_stages,  #
         cubin = cubin,
     )
-
-
-def main(_):
-    # ===== seed =====
-    random.seed(FLAGS.seed)
-    np.random.seed(FLAGS.seed)
-    torch.manual_seed(FLAGS.seed)
-    torch.backends.cudnn.deterministic = True
-
-    Z, H, N_CTX, D_HEAD = 1, 32, 4096, 64
-    dtype=torch.float16
-    q = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-    k = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-    v = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-
-    kernel = _attn_fwd
-    fn = kernel.__name__
-    sm_scale = 0.5
-    causal = True
-
-    # get cubin and asm
-    out = get_cubin(q, k, v, causal, sm_scale)
-    folder = f'{FLAGS.default_out_path}'
-    file_path = f'{fn}_{0}.cubin'
-    prefix = os.path.join(folder, f"tmp_{FLAGS.seed}")
-    if not os.path.exists(prefix):
-        os.mkdir(prefix)
-    file_path = os.path.join(prefix, file_path)
-    with open(file_path, 'wb') as file:
-        file.write(out)
-
-    for i in range(FLAGS.epoch):
-
-        # load
-        file_path = f'{fn}_{i}.cuasm'
-        full_path = os.path.join(prefix, file_path)
-        with open(full_path, 'rb') as file:
-            cuasm = file.read()
-
-        # assemble
-        full_path = os.path.join(prefix, file_path)
-        with open(full_path, 'wb') as file:
-            file.write(out)
-        cubin = ...
-
-        # execute
-        set_cubin(q, k, v, causal, sm_scale, cubin)  
-
-
-
-if __name__ == "__main__":
-    app.run(main)

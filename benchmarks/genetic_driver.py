@@ -3,16 +3,16 @@ import os
 import random
 import tempfile
 import time
+from copy import deepcopy
 
 import numpy as np
-
 import torch
 
 from CuAsm.CubinFile import CubinFile
 
 # utils
 from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
-from mutator import MutationEngine, Sample
+from mutator import MutationEngine
 
 from absl import app
 from absl import flags
@@ -33,36 +33,143 @@ flags.DEFINE_integer("generations", 50, "")
 flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
 
+class Sample:
+    def __init__(self, kernel_section: list[str], engine):
+        self.kernel_section = deepcopy(kernel_section)
+        self.engine = engine
+
+        self.candidates = []
+        self.dims = None
+        self.todos = None
+        self.last_todos = None
+        self.last_kernel_section = None
+        self.perf = None
+
+    def __eq__(self, other):
+        if not isinstance(other, Sample):
+            return False
+        if not len(self.kernel_section) == len(other.kernel_section):
+            return False
+
+        # an optimization for approximate equality
+        # for i in range(len(self.kernel_section)):
+        for i in range(1000):  
+            if i > len(self.kernel_section):
+                break
+            if not self.kernel_section[i] == other.kernel_section[i]:
+                return False
+        return True 
+
+    def __hash__(self):
+        # approximate hash
+        concatenated_string = ''.join(self.kernel_section[:1000])
+        return hash(concatenated_string)
+
+    def __len__(self):
+        assert self.dims is not None, f'no dims'
+        return self.dims
+    
+    def set_perf(self, perf):
+        self.perf = perf
+    
+    def get_kernel_section(self):
+        return self.kernel_section
+    
+    def get_mutable(self) -> list[int]:
+        # determine which lines are possible to mutate
+        # e.g. LDG, STG, and they should not cross the boundary of a label or 
+        # LDGDEPBAR or BAR.SYNC or rw dependencies
+        self.candidates = []  # list of index mutable
+        for i, line in enumerate(self.kernel_section):
+            line = line.strip()
+            # skip headers
+            if len(line) > 0 and line[0]=='[':  
+                _, _, opcode, _, _ = self.engine.decode(line)
+                if opcode in ['LDG', 'STG', 'LDS', 'LDSM']:
+                    self.candidates.append(i)
+        
+        # dimension of the optimization problem
+        self.dims = len(self.candidates)
+        return self.candidates
+    
+    def set_todos(self, actions):
+        self.todos = actions
+    
+    def apply(self):
+        if self.todos is None:
+            return 
+
+        self.last_kernel_section = deepcopy(self.kernel_section)
+        self.last_todos = self.todos
+
+        for lineno, action in zip(self.candidates, self.todos):
+            if action == -1:
+                self.kernel_section[lineno-1], self.kernel_section[lineno] = self.kernel_section[lineno], self.kernel_section[lineno-1]
+            elif action == 0:
+                pass
+            elif action == 1:
+                self.kernel_section[lineno], self.kernel_section[lineno+1] = self.kernel_section[lineno+1], self.kernel_section[lineno]
+            else:
+                assert False, f'invalid action: {action}'
+        
+        self.todos = None
+
 
 def create_population(pop_size: int, eng: MutationEngine) -> list[Sample]:
     population = []
     for _ in range(pop_size):
-        sample = eng.create_sample()
+        sample = Sample(eng.kernel_section, eng)
         mutable = sample.get_mutable()
         actions = [random.randint(-1, 1) for _ in range(len(mutable))]
-        sample.mutate(actions)
+        sample.set_todos(actions)
         population.append(sample)
     return population
 
-def tournament_selection(population: list[Sample], tournament_size, perf_func) -> list[Sample]:
+def tournament_selection(population: list[Sample], tournament_size, eng: MutationEngine) -> list[Sample]:
     selected = []
     for _ in range(len(population)):
         tournament = random.sample(population, tournament_size)
-        best_individual = max(tournament, key=perf_func)
+        for sample in tournament:
+            sample.apply()
+        best_individual = max(tournament, key=eng.get_perf)
         selected.append(best_individual)
-    return selected
 
-def crossover(parent1, parent2):
-    crossover_point = random.randint(0, len(parent1) - 1)
-    child1 = parent1[:crossover_point] + parent2[crossover_point:]
-    child2 = parent2[:crossover_point] + parent1[crossover_point:]
-    return child1, child2
+    find = False
+    for sample in selected:
+        if sample.perf > 0:
+            find = True
+            break
+    if not find:
+        print('all selected are invalid')
+
+    return selected
 
 def mutation(individual, mutation_rate):
     for i in range(len(individual)):
         if random.random() < mutation_rate:
             individual[i] = random.randint(-1, 1)  # Assign a new random value
     return individual
+
+def crossover(parent1: Sample,
+              parent2: Sample,
+              mutation_rate: float,
+              eng: MutationEngine,
+            ):
+    # crossover_point = random.randint(0, len(parent1) - 1)
+    # child1 = parent1[:crossover_point] + parent2[crossover_point:]
+    # child2 = parent2[:crossover_point] + parent1[crossover_point:]
+    # return child1, child2
+
+    crossover_point = random.randint(0, len(parent1) - 1)
+    child1_action = parent1.last_todos[:crossover_point] + parent2.last_todos[crossover_point:]
+    child2_action = parent2.last_todos[:crossover_point] + parent1.last_todos[crossover_point:]
+    child1_action = mutation(child1_action, mutation_rate)
+    child2_action = mutation(child2_action, mutation_rate)
+
+    child1 = Sample(parent1.get_kernel_section(), eng)
+    child2 = Sample(parent2.get_kernel_section(), eng)
+    return child1, child2
+
 
 
 def main(_):
@@ -157,15 +264,13 @@ def main(_):
 
     for generation in range(generations):
         # Select individuals for reproduction
-        selected_population = tournament_selection(population, tournament_size, eng.get_perf)
+        selected_population = tournament_selection(population, tournament_size, eng)
         
         # Create next generation through crossover and mutation
         new_population = []
         while len(new_population) < population_size:
             parent1, parent2 = random.sample(selected_population, 2)
             child1, child2 = crossover(parent1, parent2)
-            child1 = mutation(child1, mutation_rate)
-            child2 = mutation(child2, mutation_rate)
             new_population.extend([child1, child2])
         
         # Replace old population with new population

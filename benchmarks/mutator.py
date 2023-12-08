@@ -13,109 +13,6 @@ from triton.runtime.jit import JITFunction
 from CuAsm.CuAsmParser import CuAsmParser
 from CuAsm.CubinFile import CubinFile
 
-class Sample:
-    def __init__(self, kernel_section: list[str]):
-        self.kernel_section = kernel_section
-
-    def __eq__(self, other):
-        if not isinstance(other, Sample):
-            return False
-        if not len(self.kernel_section) == len(other.kernel_section):
-            return False
-
-        # an optimization for approximate equality
-        # for i in range(len(self.kernel_section)):
-        for i in range(1000):  
-            if i > len(self.kernel_section):
-                break
-            if not self.kernel_section[i] == other.kernel_section[i]:
-                return False
-        return True 
-
-    def __hash__(self):
-        # approximate hash
-        concatenated_string = ''.join(self.kernel_section[:1000])
-        return hash(concatenated_string)
-    
-    def get_mutable(self) -> list[int]:
-        # determine which lines are possible to mutate
-        # e.g. LDG, STG, and they should not cross the boundary of a label or 
-        # LDGDEPBAR or BAR.SYNC or rw dependencies
-        self.candidates = []  # list of index mutable
-        for i, line in enumerate(self.kernel_section):
-            line = line.strip()
-            # skip headers
-            if len(line) > 0 and line[0]=='[':  
-                _, _, opcode, _, _ = self.decode(line)
-                if opcode in ['LDG', 'STG', 'LDS', 'LDSM']:
-                    self.candidates.append(i)
-        
-        # dimension of the optimization problem
-        self.dims = len(self.candidates)
-        return self.candidates
-    
-    def mutate(self, mutations):
-        for lineno, action in zip(self.candidates, mutations):
-            if action == -1:
-                self.kernel_section[lineno-1], self.kernel_section[lineno] = self.kernel_section[lineno], self.kernel_section[lineno-1]
-            elif action == 0:
-                pass
-            elif action == 1:
-                self.kernel_section[lineno], self.kernel_section[lineno+1] = self.kernel_section[lineno+1], self.kernel_section[lineno]
-            else:
-                assert False, f'invalid action: {action}'
-    
-    def decode(self, line: str):
-        line = line.split(' ')
-        n = len(line)
-
-        ctrl_code = line[0]
-        comment = None
-        opcode = None
-        dest = None
-        src = []
-
-        idx = -1
-        for i in range(1, n):
-            if line[i] != '':
-                idx=i
-                comment = line[i]
-                break
-        assert idx > 0, f'no comment: {line}'
-
-        for i in range(idx+1, n):
-            if line[i] != '':
-                opcode = line[i]
-                idx=i
-                break
-
-        for i in range(idx+1, n):
-            if line[i] != '':
-                dest = line[i].strip(',')
-                idx=i
-                break
-
-        for i in range(idx+1, n):
-            if line[i]==';':
-                break
-
-            if line[i] != '':
-                src.append(line[i])
-
-        return ctrl_code, comment, opcode, dest, src
-    
-    def decode_ctrl_code(self, ctrl_code: str):
-        ctrl_code = ctrl_code.split(':')
-        assert len(ctrl_code) == 5, f'invalid ctrl code: {ctrl_code}'
-
-        barr = ctrl_code[0]
-        read = ctrl_code[1]
-        write = ctrl_code[2]
-        yield_flag = ctrl_code[3]
-        stall_count = ctrl_code[4]
-        return barr, read, write, yield_flag, stall_count
-
-
 
 class MutationEngine:
     def __init__(self, 
@@ -178,12 +75,60 @@ class MutationEngine:
 
         self.updater = updater
     
-    def create_sample(self):
-        return Sample(self.kernel_section)
+    def decode(self, line: str):
+        line = line.split(' ')
+        n = len(line)
+
+        ctrl_code = line[0]
+        comment = None
+        opcode = None
+        dest = None
+        src = []
+
+        idx = -1
+        for i in range(1, n):
+            if line[i] != '':
+                idx=i
+                comment = line[i]
+                break
+        assert idx > 0, f'no comment: {line}'
+
+        for i in range(idx+1, n):
+            if line[i] != '':
+                opcode = line[i]
+                idx=i
+                break
+
+        for i in range(idx+1, n):
+            if line[i] != '':
+                dest = line[i].strip(',')
+                idx=i
+                break
+
+        for i in range(idx+1, n):
+            if line[i]==';':
+                break
+
+            if line[i] != '':
+                src.append(line[i])
+
+        return ctrl_code, comment, opcode, dest, src
+    
+    def decode_ctrl_code(self, ctrl_code: str):
+        ctrl_code = ctrl_code.split(':')
+        assert len(ctrl_code) == 5, f'invalid ctrl code: {ctrl_code}'
+
+        barr = ctrl_code[0]
+        read = ctrl_code[1]
+        write = ctrl_code[2]
+        yield_flag = ctrl_code[3]
+        stall_count = ctrl_code[4]
+        return barr, read, write, yield_flag, stall_count
 
     @lru_cache(maxsize=1000)
-    def get_perf(self, sample: Sample):
-        mutated_kernel = deepcopy(sample.kernel_section)
+    def get_perf(self, sample):
+        # mutated_kernel = deepcopy(sample.kernel_section)
+        mutated_kernel = sample.kernel_section
         mutated_sass = deepcopy(self.sass)
         mutated_sass[self.start_line:self.end_line+1] = mutated_kernel
 
@@ -209,11 +154,13 @@ class MutationEngine:
 
         if total_flops is not None:
             tflops = total_flops / ms * 1e-9
+            sample.perf = tflops
             print(f'total_flops: {total_flops:.0f}; ms: {ms:.3f}; tflops: {tflops:.3f};')
             return tflops
         
 
-        raise 
+        raise RuntimeError(f'no total_flops')
+
         print(f'ms: {ms:.3f};')
         return -ms
 
