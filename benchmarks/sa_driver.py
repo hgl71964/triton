@@ -29,10 +29,13 @@ flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("test_sample", 10, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
 # sa
-flags.DEFINE_integer("max_iterations", 10, "")
+flags.DEFINE_integer("max_iterations", 1000, "")
 flags.DEFINE_float("temperature", 1.0, "")
 flags.DEFINE_float("cooling_rate", 0.003, "")
-flags.DEFINE_float("noise_factor", 0.3, "")
+flags.DEFINE_float("noise_factor", 0.2, "")
+
+MUTABLES = ['LDG', 'STG', 'LDS', 'LDSM']
+BAN = ['LDGDEPBAR']
 
 
 class Sample:
@@ -77,9 +80,6 @@ class Sample:
     def perf(self, value):
         self._perf = value
     
-    def get_kernel_section(self):
-        return self.kernel_section
-    
     def get_mutable(self) -> list[int]:
         if self.dims is not None:
             return self.candidates
@@ -87,24 +87,40 @@ class Sample:
         # determine which lines are possible to mutate
         # e.g. LDG, STG, and they should not cross the boundary of a label or 
         # LDGDEPBAR or BAR.SYNC or rw dependencies
+        lines = []
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
             # skip headers
             if len(line) > 0 and line[0]=='[':  
-                _, _, opcode, _, _ = self.engine.decode(line)
-                if opcode in ['LDG', 'STG', 'LDS', 'LDSM']:
-                    self.candidates.append(i)
+                out = self.engine.decode(line)
+                _, _, _, opcode, _, _ = out
+
+                ban = False
+                for op in BAN:
+                    if op in opcode:
+                        ban=True
+                        break
+                if ban:
+                    continue
+                        
+                for op in MUTABLES:
+                    if op in opcode:
+                        self.candidates.append(i)
+                        lines.append(line)
+                        break
         
         # dimension of the optimization problem
         self.dims = len(self.candidates)
         return self.candidates
     
     def apply(self, index, action):
+
+        lineno = self.candidates[index]
         if action == -1:
-            self.kernel_section[index-1], self.kernel_section[index] = self.kernel_section[index], self.kernel_section[index-1]
+            self.kernel_section[lineno-1], self.kernel_section[lineno] = self.kernel_section[lineno], self.kernel_section[lineno-1]
             self.candidates[index]-=1
         elif action == 1:
-            self.kernel_section[index], self.kernel_section[index+1] = self.kernel_section[index+1], self.kernel_section[index]
+            self.kernel_section[lineno], self.kernel_section[lineno+1] = self.kernel_section[lineno+1], self.kernel_section[lineno]
             self.candidates[index]+=1
         else:
             assert False, f'invalid action: {action}'
@@ -113,7 +129,6 @@ class Sample:
 
 
 def generate_neighbor(sample: Sample, n_choices):
-    neighbor = Sample(sample.kernel_section, sample.engine)
     mutable = sample.get_mutable()
     index = random.randint(0, len(mutable) - 1)
     action = random.choice([-1, 1])
@@ -122,6 +137,9 @@ def generate_neighbor(sample: Sample, n_choices):
     # mutable[index] = random.randint(-n_choices, n_choices)
     # neighbor[index] = random.randint(0, n_choices - 1)
 
+    neighbor = Sample(sample.kernel_section, sample.engine)
+    neighbor.candidates = deepcopy(mutable)
+    neighbor.dims = sample.dims
     neighbor.apply(index, action)
     return neighbor
 
@@ -140,14 +158,16 @@ def acceptance_probability(old_fitness, new_fitness, temperature):
 
 def simulated_annealing(initial_solution: Sample,
                        n_choices,
+                       max_iterations,
                        temperature,
                        cooling_rate,
                        eng: MutationEngine,
                     ) -> Sample:
     current_solution = initial_solution
     current_fitness = eng.get_perf(current_solution)
+    cnt=0
     
-    while temperature > 0.1:
+    while temperature > 0.1 and cnt < max_iterations:
         new_solution = generate_neighbor(current_solution, n_choices)
         new_fitness = eng.get_perf(new_solution)
         
@@ -156,6 +176,7 @@ def simulated_annealing(initial_solution: Sample,
             current_fitness = new_fitness
         
         temperature *= 1 - cooling_rate
+        cnt+=1
     
     return current_solution, current_fitness
 
@@ -239,22 +260,16 @@ def main(_):
                 )
 
     # ===== start =====
-    max_iterations = FLAGS.max_iterations
-    temperature = FLAGS.temperature
-    cooling_rate = FLAGS.cooling_rate
-    n_choices = FLAGS.n_choices
-
-    # Initialize a random solution
     initial_solution = Sample(eng.kernel_section, eng)
 
     _t1 = time.perf_counter()
 
     # Run simulated annealing
     best_solution, best_fitness = simulated_annealing(initial_solution,
-                                                      n_choices, 
-                                                      max_iterations, 
-                                                      temperature, 
-                                                      cooling_rate, 
+                                                      FLAGS.n_choices, 
+                                                      FLAGS.max_iterations, 
+                                                      FLAGS.temperature, 
+                                                      FLAGS.cooling_rate, 
                                                       eng,
                                                       )
 

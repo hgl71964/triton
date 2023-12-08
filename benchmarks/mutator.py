@@ -60,6 +60,7 @@ class MutationEngine:
             end_line = line-1
 
         self.start_line = start_line
+        self.kernel_start_line = kernel_start_line
         self.end_line = end_line
         self.sass = sass
         self.kernel_section = kernel_section
@@ -76,29 +77,49 @@ class MutationEngine:
         self.updater = updater
     
     def decode(self, line: str):
+        line = line.strip('\n')
         line = line.split(' ')
         n = len(line)
 
-        ctrl_code = line[0]
+        ctrl_code = None
+        predicate = None
         comment = None
         opcode = None
         dest = None
         src = []
 
         idx = -1
-        for i in range(1, n):
+        for i in range(0, n):
+            if line[i] != '':
+                idx=i
+                ctrl_code = line[i]
+                break
+        assert idx > -1, f'no ctrl: {line}'
+
+        for i in range(idx+1, n):
             if line[i] != '':
                 idx=i
                 comment = line[i]
                 break
-        assert idx > 0, f'no comment: {line}'
 
         for i in range(idx+1, n):
             if line[i] != '':
-                opcode = line[i]
+
+                if line[i][0] == '@':
+                    predicate = line[i]
+                else:
+                    opcode = line[i]
+
                 idx=i
                 break
-
+        
+        if opcode is None:
+            for i in range(idx+1, n):
+                if line[i] != '':
+                    opcode = line[i]
+                    idx=i
+                    break
+            
         for i in range(idx+1, n):
             if line[i] != '':
                 dest = line[i].strip(',')
@@ -112,7 +133,8 @@ class MutationEngine:
             if line[i] != '':
                 src.append(line[i])
 
-        return ctrl_code, comment, opcode, dest, src
+        return ctrl_code, comment, predicate, opcode, dest, src
+
     
     def decode_ctrl_code(self, ctrl_code: str):
         ctrl_code = ctrl_code.split(':')
@@ -127,16 +149,32 @@ class MutationEngine:
 
     @lru_cache(maxsize=1000)
     def get_perf(self, sample):
-        # mutated_kernel = deepcopy(sample.kernel_section)
-        mutated_kernel = sample.kernel_section
+        mutated_kernel = sample.kernel_section[self.kernel_start_line:]
         mutated_sass = deepcopy(self.sass)
         mutated_sass[self.start_line:self.end_line+1] = mutated_kernel
 
-        # assemble and update
+        # buffer IO
         cap = CuAsmParser()
         cap.parse_from_buffer(mutated_sass)
-        cubin: BytesIO = cap.dump_cubin()
+        cubin = cap.dump_cubin()
         self.updater(*self.bench_args, cubin)
+
+        # file IO
+        # with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
+        #     content_to_write = '\n'.join(mutated_sass)
+        #     temp_file.write(content_to_write)
+        #     # Ensure data is written to the file before reading it
+        #     temp_file.flush()
+        #     temp_file.seek(0)
+        #     # file_content = temp_file.read()
+        #     sass_path = temp_file.name
+        #     cap = CuAsmParser()
+        #     cap.parse(sass_path)
+        #     cubin_stream = BytesIO()
+        #     cap.saveAsCubin(cubin_stream)
+        #     cubin = cubin_stream.getvalue()
+        #     self.updater(*self.bench_args, cubin)
+
 
         ## XXX NOT test here to allow possible intermediate incorrect results
 
@@ -162,7 +200,7 @@ class MutationEngine:
         raise RuntimeError(f'no total_flops')
 
         print(f'ms: {ms:.3f};')
-        return -ms
+        return ms
 
     def verify(self, candidate):
         raise
@@ -172,3 +210,79 @@ class MutationEngine:
         for test_args, ref_out in zip(self.test_args, self.ref_outs):
             tri_out = self.kernel_func(*test_args)
             assert torch.allclose(ref_out, tri_out, atol=atol, rtol=0)
+
+def main():
+    def decode(line: str):
+        line = line.strip('\n')
+        line = line.split(' ')
+        n = len(line)
+
+        ctrl_code = None
+        predicate = None
+        comment = None
+        opcode = None
+        dest = None
+        src = []
+
+        idx = -1
+        for i in range(0, n):
+            if line[i] != '':
+                idx=i
+                ctrl_code = line[i]
+                break
+        assert idx > 0, f'no ctrl: {line}'
+
+        for i in range(idx+1, n):
+            if line[i] != '':
+                idx=i
+                comment = line[i]
+                break
+
+        for i in range(idx+1, n):
+            if line[i] != '':
+
+                if line[i][0] == '@':
+                    predicate = line[i]
+                else:
+                    opcode = line[i]
+
+                idx=i
+                break
+        
+        if opcode is None:  # if exists predicate
+            for i in range(idx+1, n):
+                if line[i] != '':
+                    opcode = line[i]
+                    idx=i
+                    break
+            
+        for i in range(idx+1, n):
+            if line[i] != '':
+                dest = line[i].strip(',')
+                idx=i
+                break
+
+        for i in range(idx+1, n):
+            if line[i]==';':
+                break
+
+            if line[i] != '':
+                src.append(line[i])
+
+        return ctrl_code, comment, predicate, opcode, dest, src
+
+    # l = ".CUASM_OFFSET_LABEL._attn_fwd_0d1d2d34d5d6de7de8de9c10de11de12de13c14de15de16de17c18de19de20de21c22c23de.EIATTR_COOP_GROUP_INSTR_OFFSETS.#:"
+    # l = " .L_x_2:"   # for label line, label is in ctrl_code
+    # l = '      [B------:R-:W0:-:S01]         /*1080*/                   LDGDEPBAR ;\n'   # LDGDEPBAR is opcode and dest is ;
+    # out = decode(l)
+
+    with open('data/test.cuasm', 'r') as f:
+        ls = f.readlines()
+
+    for l in ls:
+        out = decode(l)
+        ctrl_code, comment, predicate, opcode, dest, src = out
+
+
+if __name__ == '__main__':
+    main()
