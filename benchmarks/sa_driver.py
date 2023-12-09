@@ -13,6 +13,7 @@ from CuAsm.CubinFile import CubinFile
 # utils
 from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
 from mutator import MutationEngine
+from sample import Sample
 
 from absl import app
 from absl import flags
@@ -32,89 +33,12 @@ flags.DEFINE_integer("n_choices", 1, "+-n choices")
 flags.DEFINE_integer("max_iterations", 1000, "")
 flags.DEFINE_float("temperature", 1.0, "")
 flags.DEFINE_float("cooling_rate", 0.003, "")
-flags.DEFINE_float("noise_factor", 0.2, "")
+flags.DEFINE_float("noise_factor", 0.1, "")
+flags.DEFINE_string("policy", "single", "mutation policy; single or all")
 
-MUTABLES = ['LDG', 'STG', 'LDS', 'LDSM']
-BAN = ['LDGDEPBAR']
+class SA_Sample(Sample):
 
-
-class Sample:
-    def __init__(self, kernel_section: list[str], engine):
-        self.kernel_section = deepcopy(kernel_section)
-        self.engine = engine
-
-        self.candidates = []  # list of index mutable
-        self.dims = None
-        self._perf = None
-
-    def __eq__(self, other):
-        if not isinstance(other, Sample):
-            return False
-        if not len(self.kernel_section) == len(other.kernel_section):
-            return False
-
-        # an optimization for approximate equality
-        for i in range(len(self.kernel_section)):
-        # for i in range(1000):  
-            if i > len(self.kernel_section):
-                break
-            if not self.kernel_section[i] == other.kernel_section[i]:
-                return False
-        return True 
-
-    def __hash__(self):
-        # approximate hash
-        # concatenated_string = ''.join(self.kernel_section[:1000])
-        concatenated_string = ''.join(self.kernel_section)
-        return hash(concatenated_string)
-
-    def __len__(self):
-        assert self.dims is not None, f'no dims'
-        return self.dims
-
-    @property
-    def perf(self):
-        return self._perf
-
-    @perf.setter
-    def perf(self, value):
-        self._perf = value
-    
-    def get_mutable(self) -> list[int]:
-        if self.dims is not None:
-            return self.candidates
-        
-        # determine which lines are possible to mutate
-        # e.g. LDG, STG, and they should not cross the boundary of a label or 
-        # LDGDEPBAR or BAR.SYNC or rw dependencies
-        lines = []
-        for i, line in enumerate(self.kernel_section):
-            line = line.strip()
-            # skip headers
-            if len(line) > 0 and line[0]=='[':  
-                out = self.engine.decode(line)
-                _, _, _, opcode, _, _ = out
-
-                ban = False
-                for op in BAN:
-                    if op in opcode:
-                        ban=True
-                        break
-                if ban:
-                    continue
-                        
-                for op in MUTABLES:
-                    if op in opcode:
-                        self.candidates.append(i)
-                        lines.append(line)
-                        break
-        
-        # dimension of the optimization problem
-        self.dims = len(self.candidates)
-        return self.candidates
-    
     def apply(self, index, action):
-
         lineno = self.candidates[index]
         if action == -1:
             self.kernel_section[lineno-1], self.kernel_section[lineno] = self.kernel_section[lineno], self.kernel_section[lineno-1]
@@ -122,32 +46,37 @@ class Sample:
         elif action == 1:
             self.kernel_section[lineno], self.kernel_section[lineno+1] = self.kernel_section[lineno+1], self.kernel_section[lineno]
             self.candidates[index]+=1
+        elif action == 0:
+            pass
         else:
             assert False, f'invalid action: {action}'
-        
+
+    def apply_all(self, indexes, actions):
+        for index, action in zip(indexes, actions):
+            self.apply(index, action)
         
 
-
-def generate_neighbor(sample: Sample, n_choices):
+def generate_neighbor(sample: SA_Sample, n_choices, policy):
     mutable = sample.get_mutable()
-    index = random.randint(0, len(mutable) - 1)
-    action = random.choice([-1, 1])
+    if policy == 'single':
+        index = random.randint(0, len(mutable) - 1)
+        action = random.choice([-1, 1])
+        indexes = [index]
+        actions = [action]
+    elif policy == 'all':
+        n = len(mutable)
+        indexes = [i for i in range(n)]
+        actions = [random.choice(range(-n_choices, n_choices)) for _ in range(n)]
+    else:
+        raise RuntimeError(f'invalid policy: {policy}')
 
-    # action = random.randint(-n_choices, n_choices)
-    # mutable[index] = random.randint(-n_choices, n_choices)
-    # neighbor[index] = random.randint(0, n_choices - 1)
-
-    neighbor = Sample(sample.kernel_section, sample.engine)
+    neighbor = SA_Sample(sample.kernel_section, sample.engine)
     neighbor.candidates = deepcopy(mutable)
     neighbor.dims = sample.dims
-    neighbor.apply(index, action)
+    neighbor.apply_all(indexes, actions)
     return neighbor
 
 def acceptance_probability(old_fitness, new_fitness, temperature):
-    # if new_fitness > old_fitness:
-    #     return 1.0
-    # return math.exp((new_fitness - old_fitness) / temperature)
-
     noise = random.uniform(-FLAGS.noise_factor, FLAGS.noise_factor)
     adjusted_difference = new_fitness - old_fitness + noise
     
@@ -156,29 +85,37 @@ def acceptance_probability(old_fitness, new_fitness, temperature):
     
     return math.exp(adjusted_difference / temperature)
 
-def simulated_annealing(initial_solution: Sample,
+def simulated_annealing(initial_solution: SA_Sample,
                        n_choices,
                        max_iterations,
                        temperature,
                        cooling_rate,
+                       policy,
                        eng: MutationEngine,
-                    ) -> Sample:
+                    ) -> SA_Sample:
     current_solution = initial_solution
     current_fitness = eng.get_perf(current_solution)
-    cnt=0
+    best_solution = current_solution
+    best_fitness = current_fitness
+    cnt=1
     
-    while temperature > 0.1 and cnt < max_iterations:
-        new_solution = generate_neighbor(current_solution, n_choices)
+    while temperature > 0.05 and cnt < max_iterations:
+        new_solution = generate_neighbor(current_solution, n_choices, policy)
         new_fitness = eng.get_perf(new_solution)
         
+        print(f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}')
         if acceptance_probability(current_fitness, new_fitness, temperature) > random.random():
             current_solution = new_solution
             current_fitness = new_fitness
         
         temperature *= 1 - cooling_rate
         cnt+=1
+
+        if current_fitness > best_fitness:
+            best_fitness = current_fitness
+            best_solution = current_solution
     
-    return current_solution, current_fitness
+    return best_solution, best_fitness
 
 
 def main(_):
@@ -260,7 +197,7 @@ def main(_):
                 )
 
     # ===== start =====
-    initial_solution = Sample(eng.kernel_section, eng)
+    initial_solution = SA_Sample(eng.kernel_section, eng)
 
     _t1 = time.perf_counter()
 
@@ -270,11 +207,12 @@ def main(_):
                                                       FLAGS.max_iterations, 
                                                       FLAGS.temperature, 
                                                       FLAGS.cooling_rate, 
+                                                      FLAGS.policy, 
                                                       eng,
                                                       )
 
     _t2 = time.perf_counter()
-    hours = int((_t2 - _t1) / 3600)
+    hours = (_t2 - _t1) / 3600
     print(f'Performance: {best_fitness:.2f}; Search time: {hours:.2f}h')
 
 

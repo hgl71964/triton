@@ -184,16 +184,21 @@ class MutationEngine:
             rep = self.config['rep']
             fn = lambda: self.kernel_func(*self.bench_args)
             ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+        except ZeroDivisionError as zero_err:
+            # Catch a specific exception (ZeroDivisionError in this case)
+            print(f"Caught a ZeroDivisionError: {zero_err}")
+            ms = float('inf')
         except Exception as e:
-            ms = -1
-            raise e  # which should catch?
+            print(f'Run error: {e}')
+            ms = float('inf')
 
         total_flops = self.config.get('total_flops', None)
 
         if total_flops is not None:
             tflops = total_flops / ms * 1e-9
             sample.perf = tflops
-            print(f'total_flops: {total_flops:.0f}; ms: {ms:.3f}; tflops: {tflops:.3f};')
+            # print(f'total_flops: {total_flops:.0f}; ms: {ms:.3f}; tflops: {tflops:.3f};')
+            print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
             return tflops
         
 

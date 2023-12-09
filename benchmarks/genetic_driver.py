@@ -13,6 +13,7 @@ from CuAsm.CubinFile import CubinFile
 # utils
 from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
 from mutator import MutationEngine
+from sample import Sample
 
 from absl import app
 from absl import flags
@@ -33,104 +34,52 @@ flags.DEFINE_integer("generations", 50, "")
 flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
 
-class Sample:
+class GA_Sample(Sample):
+
     def __init__(self, kernel_section: list[str], engine):
         self.kernel_section = deepcopy(kernel_section)
         self.engine = engine
 
-        self.candidates = []
-        self.dims = None
-        self.todos = None
-        self.last_todos = None
-        self.last_kernel_section = None
-        self.perf = None
-
-    def __eq__(self, other):
-        if not isinstance(other, Sample):
-            return False
-        if not len(self.kernel_section) == len(other.kernel_section):
-            return False
-
-        # an optimization for approximate equality
-        # for i in range(len(self.kernel_section)):
-        for i in range(1000):  
-            if i > len(self.kernel_section):
-                break
-            if not self.kernel_section[i] == other.kernel_section[i]:
-                return False
-        return True 
-
-    def __hash__(self):
-        # approximate hash
-        concatenated_string = ''.join(self.kernel_section[:1000])
-        return hash(concatenated_string)
-
-    def __len__(self):
-        assert self.dims is not None, f'no dims'
-        return self.dims
-    
-    def set_perf(self, perf):
-        self.perf = perf
-    
-    def get_kernel_section(self):
-        return self.kernel_section
-    
-    def get_mutable(self) -> list[int]:
-        # determine which lines are possible to mutate
-        # e.g. LDG, STG, and they should not cross the boundary of a label or 
-        # LDGDEPBAR or BAR.SYNC or rw dependencies
         self.candidates = []  # list of index mutable
-        for i, line in enumerate(self.kernel_section):
-            line = line.strip()
-            # skip headers
-            if len(line) > 0 and line[0]=='[':  
-                _, _, opcode, _, _ = self.engine.decode(line)
-                if opcode in ['LDG', 'STG', 'LDS', 'LDSM']:
-                    self.candidates.append(i)
-        
-        # dimension of the optimization problem
-        self.dims = len(self.candidates)
-        return self.candidates
+        self.dims = None
+        self._perf = None
+        self.actions = []
     
-    def set_todos(self, actions):
-        self.todos = actions
-    
-    def apply(self):
-        if self.todos is None:
-            return 
+    def apply(self, index, action):
+        lineno = self.candidates[index]
+        if action == -1:
+            self.kernel_section[lineno-1], self.kernel_section[lineno] = self.kernel_section[lineno], self.kernel_section[lineno-1]
+            self.candidates[index]-=1
+        elif action == 1:
+            self.kernel_section[lineno], self.kernel_section[lineno+1] = self.kernel_section[lineno+1], self.kernel_section[lineno]
+            self.candidates[index]+=1
+        elif action == 0:
+            pass
+        else:
+            assert False, f'invalid action: {action}'
 
-        self.last_kernel_section = deepcopy(self.kernel_section)
-        self.last_todos = self.todos
-
-        for lineno, action in zip(self.candidates, self.todos):
-            if action == -1:
-                self.kernel_section[lineno-1], self.kernel_section[lineno] = self.kernel_section[lineno], self.kernel_section[lineno-1]
-            elif action == 0:
-                pass
-            elif action == 1:
-                self.kernel_section[lineno], self.kernel_section[lineno+1] = self.kernel_section[lineno+1], self.kernel_section[lineno]
-            else:
-                assert False, f'invalid action: {action}'
-        
-        self.todos = None
+    def apply_all(self, indexes, actions):
+        self.actions = actions
+        for index, action in zip(indexes, actions):
+            self.apply(index, action)
 
 
-def create_population(pop_size: int, eng: MutationEngine) -> list[Sample]:
+def create_population(pop_size: int, eng: MutationEngine) -> list[GA_Sample]:
     population = []
     for _ in range(pop_size):
-        sample = Sample(eng.kernel_section, eng)
+        sample = GA_Sample(eng.kernel_section, eng)
         mutable = sample.get_mutable()
+        n = len(mutable)
+        indexes = [i for i in range(n)]
         actions = [random.randint(-1, 1) for _ in range(len(mutable))]
-        sample.set_todos(actions)
+        sample.apply_all(indexes, actions)
         population.append(sample)
     return population
 
-def tournament_selection(population: list[Sample], tournament_size, eng: MutationEngine) -> list[Sample]:
+def tournament_selection(population: list[GA_Sample], tournament_size, eng: MutationEngine) -> list[GA_Sample]:
     selected = []
     for _ in range(len(population)):
         tournament = random.sample(population, tournament_size)
-        for sample in tournament:
-            sample.apply()
         best_individual = max(tournament, key=eng.get_perf)
         selected.append(best_individual)
 
@@ -139,6 +88,7 @@ def tournament_selection(population: list[Sample], tournament_size, eng: Mutatio
         if sample.perf > 0:
             find = True
             break
+
     if not find:
         print('all selected are invalid')
 
@@ -150,25 +100,42 @@ def mutation(individual, mutation_rate):
             individual[i] = random.randint(-1, 1)  # Assign a new random value
     return individual
 
-def crossover(parent1: Sample,
-              parent2: Sample,
+def build_child(parent: GA_Sample,
+                mutated_action: list[int],
+                eng: MutationEngine,
+            ):
+    child = GA_Sample(parent.kernel_section, eng)
+    child.candidates = deepcopy(parent.candidates)
+    child.dims = parent.dims
+    child.apply_all([i for i in range(len(mutated_action))], mutated_action)
+    return child
+
+def crossover(parent1: GA_Sample,
+              parent2: GA_Sample,
               mutation_rate: float,
               eng: MutationEngine,
             ):
+    
     # crossover_point = random.randint(0, len(parent1) - 1)
     # child1 = parent1[:crossover_point] + parent2[crossover_point:]
     # child2 = parent2[:crossover_point] + parent1[crossover_point:]
     # return child1, child2
 
-    crossover_point = random.randint(0, len(parent1) - 1)
-    child1_action = parent1.last_todos[:crossover_point] + parent2.last_todos[crossover_point:]
-    child2_action = parent2.last_todos[:crossover_point] + parent1.last_todos[crossover_point:]
-    child1_action = mutation(child1_action, mutation_rate)
-    child2_action = mutation(child2_action, mutation_rate)
+    # TODO mutation should base on a common set of kernel_section
 
-    child1 = Sample(parent1.get_kernel_section(), eng)
-    child2 = Sample(parent2.get_kernel_section(), eng)
-    return child1, child2
+    n = parent1.dims
+    crossover_point = random.randint(0, n - 1)
+    crossover_action1 = parent1.actions[:crossover_point] + parent2.actions[crossover_point:]
+    crossover_action2 = parent2.actions[:crossover_point] + parent1.actions[crossover_point:]
+
+    mutated_action1 = mutation(crossover_action1, mutation_rate)
+    mutated_action2 = mutation(crossover_action2, mutation_rate)
+
+    child1 = build_child(parent1, mutated_action1, eng)
+    child2 = build_child(parent1, mutated_action2, eng)
+    child3 = build_child(parent2, mutated_action1, eng)
+    child4 = build_child(parent2, mutated_action2, eng)
+    return child1, child2, child3, child4
 
 
 
@@ -270,8 +237,10 @@ def main(_):
         new_population = []
         while len(new_population) < population_size:
             parent1, parent2 = random.sample(selected_population, 2)
-            child1, child2 = crossover(parent1, parent2)
-            new_population.extend([child1, child2])
+            # child1, child2 = crossover(parent1, parent2)
+            # new_population.extend([child1, child2])
+            child1, child2 , child3, child4 = crossover(parent1, parent2, mutation_rate, eng)
+            new_population.extend([child1, child2, child3, child4])
         
         # Replace old population with new population
         population = new_population
@@ -280,7 +249,7 @@ def main(_):
     best_individual = max(population, key=eng.get_perf)
 
     _t2 = time.perf_counter()
-    hours = int((_t2 - _t1) / 3600)
+    hours = (_t2 - _t1) / 3600
     print(f'Performance: {eng.get_perf(best_individual)}; search time: {hours:.2f}h')
 
 
