@@ -36,16 +36,22 @@ flags.DEFINE_float("cooling_rate", 0.003, "")
 flags.DEFINE_float("noise_factor", 0.1, "")
 flags.DEFINE_string("policy", "single", "mutation policy; single or all")
 
+
 class SA_Sample(Sample):
 
     def apply(self, index, action):
         lineno = self.candidates[index]
         if action == -1:
-            self.kernel_section[lineno-1], self.kernel_section[lineno] = self.kernel_section[lineno], self.kernel_section[lineno-1]
-            self.candidates[index]-=1
+            self.kernel_section[lineno - 1], self.kernel_section[
+                lineno] = self.kernel_section[lineno], self.kernel_section[
+                    lineno - 1]
+            self.candidates[index] -= 1
         elif action == 1:
-            self.kernel_section[lineno], self.kernel_section[lineno+1] = self.kernel_section[lineno+1], self.kernel_section[lineno]
-            self.candidates[index]+=1
+            self.kernel_section[lineno], self.kernel_section[
+                lineno +
+                1] = self.kernel_section[lineno +
+                                         1], self.kernel_section[lineno]
+            self.candidates[index] += 1
         elif action == 0:
             pass
         else:
@@ -54,7 +60,7 @@ class SA_Sample(Sample):
     def apply_all(self, indexes, actions):
         for index, action in zip(indexes, actions):
             self.apply(index, action)
-        
+
 
 def generate_neighbor(sample: SA_Sample, n_choices, policy):
     mutable = sample.get_mutable()
@@ -66,7 +72,9 @@ def generate_neighbor(sample: SA_Sample, n_choices, policy):
     elif policy == 'all':
         n = len(mutable)
         indexes = [i for i in range(n)]
-        actions = [random.choice(range(-n_choices, n_choices)) for _ in range(n)]
+        actions = [
+            random.choice(range(-n_choices, n_choices)) for _ in range(n)
+        ]
     else:
         raise RuntimeError(f'invalid policy: {policy}')
 
@@ -76,45 +84,51 @@ def generate_neighbor(sample: SA_Sample, n_choices, policy):
     neighbor.apply_all(indexes, actions)
     return neighbor
 
+
 def acceptance_probability(old_fitness, new_fitness, temperature):
     noise = random.uniform(-FLAGS.noise_factor, FLAGS.noise_factor)
     adjusted_difference = new_fitness - old_fitness + noise
-    
+
     if adjusted_difference > 0:
         return 1.0
-    
+
     return math.exp(adjusted_difference / temperature)
 
-def simulated_annealing(initial_solution: SA_Sample,
-                       n_choices,
-                       max_iterations,
-                       temperature,
-                       cooling_rate,
-                       policy,
-                       eng: MutationEngine,
-                    ) -> SA_Sample:
+
+def simulated_annealing(
+    initial_solution: SA_Sample,
+    n_choices,
+    max_iterations,
+    temperature,
+    cooling_rate,
+    policy,
+    eng: MutationEngine,
+) -> SA_Sample:
     current_solution = initial_solution
     current_fitness = eng.get_perf(current_solution)
     best_solution = current_solution
     best_fitness = current_fitness
-    cnt=1
-    
+    cnt = 1
+
     while temperature > 0.05 and cnt < max_iterations:
         new_solution = generate_neighbor(current_solution, n_choices, policy)
         new_fitness = eng.get_perf(new_solution)
-        
-        print(f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}')
-        if acceptance_probability(current_fitness, new_fitness, temperature) > random.random():
+
+        print(
+            f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}'
+        )
+        if acceptance_probability(current_fitness, new_fitness,
+                                  temperature) > random.random():
             current_solution = new_solution
             current_fitness = new_fitness
-        
+
         temperature *= 1 - cooling_rate
-        cnt+=1
+        cnt += 1
 
         if current_fitness > best_fitness:
             best_fitness = current_fitness
             best_solution = current_solution
-    
+
     return best_solution, best_fitness
 
 
@@ -132,17 +146,22 @@ def main(_):
     sm_scale = 0.5
     causal = True
     Z, H, N_CTX, D_HEAD = 1, 32, 4096, 64
-    dtype=torch.float16
+    dtype = torch.float16
 
     test_args = []
     ref_outs = []
 
     ## reference
     for _ in range(FLAGS.test_sample):
-        q = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5)
-        k = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5)
-        v = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5)
-
+        q = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                        device="cuda").normal_(
+                            mean=0.0, std=0.5)
+        k = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                        device="cuda").normal_(
+                            mean=0.0, std=0.5)
+        v = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                        device="cuda").normal_(
+                            mean=0.0, std=0.5)
 
         M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
         p = torch.matmul(q, k.transpose(2, 3)) * sm_scale
@@ -153,9 +172,8 @@ def main(_):
 
         test_args.append((q, k, v, causal, sm_scale))
         ref_outs.append(ref_out)
-    
+
     bench_args = test_args[0]
-        
 
     # ===== config =====
     warmup = 100
@@ -166,7 +184,6 @@ def main(_):
         total_flops *= 0.5
     config = {
         'atol': 1e-2,
-
         "total_flops": total_flops,
         'warmup': warmup,
         'rep': rep,
@@ -183,18 +200,19 @@ def main(_):
     with open(file_path, 'wb') as file:
         file.write(cubin)
 
-    # disassemble 
+    # disassemble
     time.sleep(1)
     binname = file_path
-    cf = CubinFile(binname)  
-    eng = MutationEngine(cf,
-                    kernel,
-                    set_cubin,
-                    bench_args,
-                    test_args,
-                    ref_outs,
-                    config,
-                )
+    cf = CubinFile(binname)
+    eng = MutationEngine(
+        cf,
+        kernel,
+        set_cubin,
+        bench_args,
+        test_args,
+        ref_outs,
+        config,
+    )
 
     # ===== start =====
     initial_solution = SA_Sample(eng.kernel_section, eng)
@@ -202,14 +220,15 @@ def main(_):
     _t1 = time.perf_counter()
 
     # Run simulated annealing
-    best_solution, best_fitness = simulated_annealing(initial_solution,
-                                                      FLAGS.n_choices, 
-                                                      FLAGS.max_iterations, 
-                                                      FLAGS.temperature, 
-                                                      FLAGS.cooling_rate, 
-                                                      FLAGS.policy, 
-                                                      eng,
-                                                      )
+    best_solution, best_fitness = simulated_annealing(
+        initial_solution,
+        FLAGS.n_choices,
+        FLAGS.max_iterations,
+        FLAGS.temperature,
+        FLAGS.cooling_rate,
+        FLAGS.policy,
+        eng,
+    )
 
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600

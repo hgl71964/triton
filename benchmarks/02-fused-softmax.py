@@ -41,7 +41,9 @@ flags.DEFINE_integer("hack", 0, "whether to hack")
 flags.DEFINE_string("fn", None, "cubin name to load")
 
 
-def softmax_kernel(output_ptr, input_ptr, input_row_stride, output_row_stride, n_cols, BLOCK_SIZE: tl.constexpr):
+def softmax_kernel(
+        output_ptr, input_ptr, input_row_stride, output_row_stride, n_cols,
+        BLOCK_SIZE: tl.constexpr):
     # The rows of the softmax are independent, so we parallelize across those
     row_idx = tl.program_id(0)
     # The stride represents how much we need to increase the pointer to advance 1 row
@@ -62,6 +64,7 @@ def softmax_kernel(output_ptr, input_ptr, input_row_stride, output_row_stride, n
     output_row_start_ptr = output_ptr + row_idx * output_row_stride
     output_ptrs = output_row_start_ptr + col_offsets
     tl.store(output_ptrs, softmax_output, mask=col_offsets < n_cols)
+
 
 def softmax(x, kernel):
     n_rows, n_cols = x.shape
@@ -91,6 +94,7 @@ def softmax(x, kernel):
     )
     return y
 
+
 def get_cubin(x, kernel: JITFunction):
     n_rows, n_cols = x.shape
     BLOCK_SIZE = triton.next_power_of_2(n_cols)
@@ -112,6 +116,7 @@ def get_cubin(x, kernel: JITFunction):
     out = asm['cubin']
     return out
 
+
 def set_cubin(x, kernel: JITFunction, cubin):
     n_rows, n_cols = x.shape
     BLOCK_SIZE = triton.next_power_of_2(n_cols)
@@ -132,6 +137,7 @@ def set_cubin(x, kernel: JITFunction, cubin):
         cubin=cubin,
     )
 
+
 def main(_):
     kernel = triton.jit(softmax_kernel)
     fn = kernel.__name__
@@ -150,8 +156,8 @@ def main(_):
         binname = file_path
         cf = CubinFile(binname)
         asmname = binname.replace('.cubin', '.cuasm')
-        cf.saveAsCuAsm(asmname) 
-        return 
+        cf.saveAsCuAsm(asmname)
+        return
 
     if bool(FLAGS.hack):
         # set
@@ -159,7 +165,8 @@ def main(_):
         file_path = os.path.join(FLAGS.default_out_path, FLAGS.fn)
         with open(file_path, 'rb') as file:
             cubin = file.read()
-        _ = get_cubin(dummy, kernel)  # this populate the cache with the same key
+        _ = get_cubin(
+            dummy, kernel)  # this populate the cache with the same key
         set_cubin(dummy, kernel, cubin)
 
     ## TEST
@@ -201,9 +208,10 @@ def main(_):
     #         ms, min_ms, max_ms = triton.testing.do_bench(lambda: naive_softmax(x), quantiles=quantiles)
     #     gbps = lambda ms: 2 * x.nelement() * x.element_size() * 1e-9 / (ms * 1e-3)
     #     return gbps(ms), gbps(max_ms), gbps(min_ms)
-    # 
-    # 
+    #
+    #
     # benchmark.run(show_plots=True, print_data=True)
+
 
 if __name__ == "__main__":
     app.run(main)

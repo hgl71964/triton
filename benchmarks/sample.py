@@ -2,7 +2,9 @@ from copy import deepcopy
 
 from constant import MUTABLES, BAN
 
+
 class Sample:
+
     def __init__(self, kernel_section: list[str], engine):
         self.kernel_section = deepcopy(kernel_section)
         self.engine = engine
@@ -19,12 +21,12 @@ class Sample:
 
         # an optimization for approximate equality
         for i in range(len(self.kernel_section)):
-        # for i in range(1000):  
+            # for i in range(1000):
             if i > len(self.kernel_section):
                 break
             if not self.kernel_section[i] == other.kernel_section[i]:
                 return False
-        return True 
+        return True
 
     def __hash__(self):
         # approximate hash
@@ -43,37 +45,36 @@ class Sample:
     @perf.setter
     def perf(self, value):
         self._perf = value
-    
+
     def get_mutable(self) -> list[int]:
         if self.dims is not None:
             return self.candidates
-        
+
         # determine which lines are possible to mutate
-        # e.g. LDG, STG, and they should not cross the boundary of a label or 
+        # e.g. LDG, STG, and they should not cross the boundary of a label or
         # LDGDEPBAR or BAR.SYNC or rw dependencies
         lines = []
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
             # skip headers
-            if len(line) > 0 and line[0]=='[':  
+            if len(line) > 0 and line[0] == '[':
                 out = self.engine.decode(line)
                 _, _, _, opcode, _, _ = out
 
                 ban = False
                 for op in BAN:
                     if op in opcode:
-                        ban=True
+                        ban = True
                         break
                 if ban:
                     continue
-                        
+
                 for op in MUTABLES:
                     if op in opcode:
                         self.candidates.append(i)
                         lines.append(line)
                         break
-        
+
         # dimension of the optimization problem
         self.dims = len(self.candidates)
         return self.candidates
-    

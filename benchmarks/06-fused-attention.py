@@ -12,6 +12,7 @@ Extra Credits:
 """
 
 import setproctitle
+
 setproctitle.setproctitle('hey guys')
 
 import os
@@ -37,12 +38,22 @@ flags.DEFINE_integer("flash", 0, "whether to use flash attention")
 
 
 @triton.jit
-def _attn_fwd_inner(acc, l_i, m_i, q,  #
-                    K_block_ptr, V_block_ptr,  #
-                    start_m, qk_scale,  #
-                    BLOCK_M: tl.constexpr, BLOCK_DMODEL: tl.constexpr, BLOCK_N: tl.constexpr,  #
-                    STAGE: tl.constexpr, offs_m: tl.constexpr, offs_n: tl.constexpr,  #
-                    N_CTX: tl.constexpr):
+def _attn_fwd_inner(
+        acc,
+        l_i,
+        m_i,
+        q,  #
+        K_block_ptr,
+        V_block_ptr,  #
+        start_m,
+        qk_scale,  #
+        BLOCK_M: tl.constexpr,
+        BLOCK_DMODEL: tl.constexpr,
+        BLOCK_N: tl.constexpr,  #
+        STAGE: tl.constexpr,
+        offs_m: tl.constexpr,
+        offs_n: tl.constexpr,  #
+        N_CTX: tl.constexpr):
     # range of values handled by this stage
     if STAGE == 1:
         lo, hi = 0, start_m * BLOCK_M
@@ -112,23 +123,43 @@ def _attn_fwd_inner(acc, l_i, m_i, q,  #
 
 
 @triton.jit
-def _attn_fwd(Q, K, V, sm_scale, M, Out,  #
-              stride_qz, stride_qh, stride_qm, stride_qk,  #
-              stride_kz, stride_kh, stride_kn, stride_kk,  #
-              stride_vz, stride_vh, stride_vk, stride_vn,  #
-              stride_oz, stride_oh, stride_om, stride_on,  #
-              Z, H,  #
-              N_CTX: tl.constexpr,  #
-              BLOCK_M: tl.constexpr,  #
-              BLOCK_DMODEL: tl.constexpr,  #
-              BLOCK_N: tl.constexpr,  #
-              STAGE: tl.constexpr  #
-              ):
+def _attn_fwd(
+        Q,
+        K,
+        V,
+        sm_scale,
+        M,
+        Out,  #
+        stride_qz,
+        stride_qh,
+        stride_qm,
+        stride_qk,  #
+        stride_kz,
+        stride_kh,
+        stride_kn,
+        stride_kk,  #
+        stride_vz,
+        stride_vh,
+        stride_vk,
+        stride_vn,  #
+        stride_oz,
+        stride_oh,
+        stride_om,
+        stride_on,  #
+        Z,
+        H,  #
+        N_CTX: tl.constexpr,  #
+        BLOCK_M: tl.constexpr,  #
+        BLOCK_DMODEL: tl.constexpr,  #
+        BLOCK_N: tl.constexpr,  #
+        STAGE: tl.constexpr  #
+):
     start_m = tl.program_id(0)
     off_hz = tl.program_id(1)
     off_z = off_hz // H
     off_h = off_hz % H
-    qvk_offset = off_z.to(tl.int64) * stride_qz + off_h.to(tl.int64) * stride_qh
+    qvk_offset = off_z.to(tl.int64) * stride_qz + off_h.to(
+        tl.int64) * stride_qh
 
     # block pointers
     Q_block_ptr = tl.make_block_ptr(
@@ -179,28 +210,51 @@ def _attn_fwd(Q, K, V, sm_scale, M, Out,  #
     # For causal = True, STAGE = 3 and _attn_fwd_inner gets 1 as its STAGE
     # For causal = False, STAGE = 1, and _attn_fwd_inner gets 3 as its STAGE
     if STAGE & 1:
-        acc, l_i, m_i = _attn_fwd_inner(acc, l_i, m_i, q, K_block_ptr, V_block_ptr,  #
-                                        start_m, qk_scale,  #
-                                        BLOCK_M, BLOCK_DMODEL, BLOCK_N,  #
-                                        4 - STAGE, offs_m, offs_n, N_CTX  #
-                                        )
+        acc, l_i, m_i = _attn_fwd_inner(
+            acc,
+            l_i,
+            m_i,
+            q,
+            K_block_ptr,
+            V_block_ptr,  #
+            start_m,
+            qk_scale,  #
+            BLOCK_M,
+            BLOCK_DMODEL,
+            BLOCK_N,  #
+            4 - STAGE,
+            offs_m,
+            offs_n,
+            N_CTX  #
+        )
     # stage 2: on-band
     if STAGE & 2:
         # barrier makes it easier for compielr to schedule the
         # two loops independently
         tl.debug_barrier()
-        acc, l_i, m_i = _attn_fwd_inner(acc, l_i, m_i, q, K_block_ptr, V_block_ptr,  #
-                                        start_m, qk_scale,  #
-                                        BLOCK_M, BLOCK_DMODEL, BLOCK_N,  #
-                                        2, offs_m, offs_n, N_CTX  #
-                                        )
+        acc, l_i, m_i = _attn_fwd_inner(
+            acc,
+            l_i,
+            m_i,
+            q,
+            K_block_ptr,
+            V_block_ptr,  #
+            start_m,
+            qk_scale,  #
+            BLOCK_M,
+            BLOCK_DMODEL,
+            BLOCK_N,  #
+            2,
+            offs_m,
+            offs_n,
+            N_CTX  #
+        )
     # epilogue
     m_i += tl.math.log2(l_i)
     acc = acc / l_i[:, None]
     m_ptrs = M + off_hz * N_CTX + offs_m
     tl.store(m_ptrs, m_i)
     tl.store(O_block_ptr, acc.to(Out.type.element_ty))
-
 
 
 def attn_forward(q, k, v, causal, sm_scale):
@@ -221,14 +275,35 @@ def attn_forward(q, k, v, causal, sm_scale):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty((q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
+    M = torch.empty(
+        (q.shape[0], q.shape[1], q.shape[2]),
+        device=q.device,
+        dtype=torch.float32)
     _attn_fwd[grid](
-        q, k, v, sm_scale, M, o,  #
-        q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
-        k.stride(0), k.stride(1), k.stride(2), k.stride(3),  #
-        v.stride(0), v.stride(1), v.stride(2), v.stride(3),  #
-        o.stride(0), o.stride(1), o.stride(2), o.stride(3),  #
-        q.shape[0], q.shape[1],  #
+        q,
+        k,
+        v,
+        sm_scale,
+        M,
+        o,  #
+        q.stride(0),
+        q.stride(1),
+        q.stride(2),
+        q.stride(3),  #
+        k.stride(0),
+        k.stride(1),
+        k.stride(2),
+        k.stride(3),  #
+        v.stride(0),
+        v.stride(1),
+        v.stride(2),
+        v.stride(3),  #
+        o.stride(0),
+        o.stride(1),
+        o.stride(2),
+        o.stride(3),  #
+        q.shape[0],
+        q.shape[1],  #
         N_CTX=q.shape[2],  #
         BLOCK_M=BLOCK_M,  #
         BLOCK_N=BLOCK_N,  #
@@ -238,6 +313,7 @@ def attn_forward(q, k, v, causal, sm_scale):
         num_stages=num_stages  #
     )
     return o
+
 
 def get_cubin(q, k, v, causal, sm_scale):
     # shape constraints
@@ -257,14 +333,35 @@ def get_cubin(q, k, v, causal, sm_scale):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty((q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
+    M = torch.empty(
+        (q.shape[0], q.shape[1], q.shape[2]),
+        device=q.device,
+        dtype=torch.float32)
     asm = _attn_fwd.only_compile(
-        q, k, v, sm_scale, M, o,  #
-        q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
-        k.stride(0), k.stride(1), k.stride(2), k.stride(3),  #
-        v.stride(0), v.stride(1), v.stride(2), v.stride(3),  #
-        o.stride(0), o.stride(1), o.stride(2), o.stride(3),  #
-        q.shape[0], q.shape[1],  #
+        q,
+        k,
+        v,
+        sm_scale,
+        M,
+        o,  #
+        q.stride(0),
+        q.stride(1),
+        q.stride(2),
+        q.stride(3),  #
+        k.stride(0),
+        k.stride(1),
+        k.stride(2),
+        k.stride(3),  #
+        v.stride(0),
+        v.stride(1),
+        v.stride(2),
+        v.stride(3),  #
+        o.stride(0),
+        o.stride(1),
+        o.stride(2),
+        o.stride(3),  #
+        q.shape[0],
+        q.shape[1],  #
         N_CTX=q.shape[2],  #
         BLOCK_M=BLOCK_M,  #
         BLOCK_N=BLOCK_N,  #
@@ -275,6 +372,7 @@ def get_cubin(q, k, v, causal, sm_scale):
     )
     out = asm['cubin']
     return out
+
 
 def set_cubin(q, k, v, causal, sm_scale, cubin):
     # shape constraints
@@ -294,14 +392,35 @@ def set_cubin(q, k, v, causal, sm_scale, cubin):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty((q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
+    M = torch.empty(
+        (q.shape[0], q.shape[1], q.shape[2]),
+        device=q.device,
+        dtype=torch.float32)
     _attn_fwd.hack_cubin(
-        q, k, v, sm_scale, M, o,  #
-        q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
-        k.stride(0), k.stride(1), k.stride(2), k.stride(3),  #
-        v.stride(0), v.stride(1), v.stride(2), v.stride(3),  #
-        o.stride(0), o.stride(1), o.stride(2), o.stride(3),  #
-        q.shape[0], q.shape[1],  #
+        q,
+        k,
+        v,
+        sm_scale,
+        M,
+        o,  #
+        q.stride(0),
+        q.stride(1),
+        q.stride(2),
+        q.stride(3),  #
+        k.stride(0),
+        k.stride(1),
+        k.stride(2),
+        k.stride(3),  #
+        v.stride(0),
+        v.stride(1),
+        v.stride(2),
+        v.stride(3),  #
+        o.stride(0),
+        o.stride(1),
+        o.stride(2),
+        o.stride(3),  #
+        q.shape[0],
+        q.shape[1],  #
         N_CTX=q.shape[2],  #
         BLOCK_M=BLOCK_M,  #
         BLOCK_N=BLOCK_N,  #
@@ -309,16 +428,22 @@ def set_cubin(q, k, v, causal, sm_scale, cubin):
         STAGE=stage,  #
         num_warps=num_warps,  #
         num_stages=num_stages,  #
-        cubin = cubin,
+        cubin=cubin,
     )
 
 
 def main(_):
     Z, H, N_CTX, D_HEAD = 1, 32, 4096, 64
-    dtype=torch.float16
-    q = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-    k = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-    v = (torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
+    dtype = torch.float16
+    q = (
+        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
+    k = (
+        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
+    v = (
+        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
 
     kernel = _attn_fwd
     fn = kernel.__name__
@@ -338,8 +463,8 @@ def main(_):
         binname = file_path
         cf = CubinFile(binname)
         asmname = binname.replace('.cubin', '.cuasm')
-        cf.saveAsCuAsm(asmname) 
-        return 
+        cf.saveAsCuAsm(asmname)
+        return
 
     if bool(FLAGS.hack):
         # set
@@ -347,10 +472,12 @@ def main(_):
         file_path = os.path.join(FLAGS.default_out_path, FLAGS.fn)
         with open(file_path, 'rb') as file:
             cubin = file.read()
-        _ = get_cubin(q, k, v, causal, sm_scale)  # this populate the cache with the same key
+        _ = get_cubin(
+            q, k, v, causal,
+            sm_scale)  # this populate the cache with the same key
         set_cubin(q, k, v, causal, sm_scale, cubin)
 
-    ## TEST 
+    ## TEST
     print('TEST')
     tri_out = attn_forward(q, k, v, causal, sm_scale).half()
 
@@ -375,9 +502,9 @@ def main(_):
     total_flops = 2 * flops_per_matmul
     if causal:
         total_flops *= 0.5
-    tflops = total_flops *1e3 / ms * 1e-12
-    print(f'total_flops: {total_flops:.0f}; ms: {ms:.3f}; tflops: {tflops:.3f};')
-
+    tflops = total_flops * 1e3 / ms * 1e-12
+    print(
+        f'total_flops: {total_flops:.0f}; ms: {ms:.3f}; tflops: {tflops:.3f};')
 
 
 if __name__ == "__main__":

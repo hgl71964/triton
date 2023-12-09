@@ -34,30 +34,34 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config({
-            'BLOCK_SIZE_M': 128,
-            'BLOCK_SIZE_N': 128,
-            'BLOCK_SIZE_K': 32,
-            'NUM_SM': 84,
-        }),
-        triton.Config({
-            'BLOCK_SIZE_M': 128,
-            'BLOCK_SIZE_N': 128,
-            'BLOCK_SIZE_K': 32,
-            'NUM_SM': 128,
-        }),
-        triton.Config({
-            'BLOCK_SIZE_M': 64,
-            'BLOCK_SIZE_N': 64,
-            'BLOCK_SIZE_K': 32,
-            'NUM_SM': 84,
-        }),
-        triton.Config({
-            'BLOCK_SIZE_M': 64,
-            'BLOCK_SIZE_N': 64,
-            'BLOCK_SIZE_K': 32,
-            'NUM_SM': 128,
-        }),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'NUM_SM': 84,
+            }),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'NUM_SM': 128,
+            }),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 64,
+                'BLOCK_SIZE_K': 32,
+                'NUM_SM': 84,
+            }),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 64,
+                'BLOCK_SIZE_K': 32,
+                'NUM_SM': 128,
+            }),
     ],
     key=['group_size'],
 )
@@ -93,7 +97,8 @@ def grouped_matmul_kernel(
         num_n_tiles = tl.cdiv(gn, BLOCK_SIZE_N)
         num_tiles = num_m_tiles * num_n_tiles
         # iterate through the tiles in the current gemm problem
-        while (tile_idx >= last_problem_end and tile_idx < last_problem_end + num_tiles):
+        while (tile_idx >= last_problem_end
+               and tile_idx < last_problem_end + num_tiles):
             # pick up a tile from the current gemm problem
             k = gk
             lda = tl.load(g_lds + g * 3)
@@ -113,7 +118,8 @@ def grouped_matmul_kernel(
             offs_k = tl.arange(0, BLOCK_SIZE_K)
             a_ptrs = a_ptr + offs_am[:, None] * lda + offs_k[None, :]
             b_ptrs = b_ptr + offs_k[:, None] * ldb + offs_bn[None, :]
-            accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+            accumulator = tl.zeros(
+                (BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
             for kk in range(0, tl.cdiv(k, BLOCK_SIZE_K)):
                 # hint to Triton compiler to do proper loop pipelining
                 tl.multiple_of(a_ptrs, [16, 16])
@@ -230,7 +236,8 @@ def torch_perf_fn(group_A, group_B):
     triton.testing.Benchmark(
         # argument names to use as an x-axis for the plot
         x_names=['N'],
-        x_vals=[2**i for i in range(7, 11)],  # different possible values for `x_name`
+        x_vals=[2**i for i in range(7, 11)
+                ],  # different possible values for `x_name`
         line_arg='provider',
         # argument name whose value corresponds to a different line in the plot
         # possible values for `line_arg``
@@ -275,10 +282,13 @@ def benchmark(N, provider):
 
     quantiles = [0.5, 0.2, 0.8]
     if provider == 'cublas':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch_perf_fn(group_A, group_B), quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(
+            lambda: torch_perf_fn(group_A, group_B), quantiles=quantiles)
     if provider == 'triton':
         ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: triton_perf_fn(d_a_ptrs, d_b_ptrs, d_c_ptrs, d_g_sizes, d_g_lds, group_size), quantiles=quantiles)
+            lambda: triton_perf_fn(
+                d_a_ptrs, d_b_ptrs, d_c_ptrs, d_g_sizes, d_g_lds, group_size),
+            quantiles=quantiles)
     return ms, max_ms, min_ms
 
 

@@ -156,6 +156,7 @@ import triton
 import triton.language as tl
 
 import setproctitle
+
 setproctitle.setproctitle('hey guys')
 
 
@@ -166,39 +167,104 @@ setproctitle.setproctitle('hey guys')
 #       provided configs
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3,
-                      num_warps=8),
-        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-                      num_warps=2),
-        triton.Config({'BLOCK_SIZE_M': 32, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-                      num_warps=2),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 256,
+                'BLOCK_SIZE_K': 64,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=3,
+            num_warps=8),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 256,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 64,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 32,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 32,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=5,
+            num_warps=2),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 32,
+                'BLOCK_SIZE_N': 64,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=5,
+            num_warps=2),
     ],
     key=['M', 'N', 'K'],
 )
 @triton.jit
 def matmul_kernel(
         # Pointers to matrices
-        a_ptr, b_ptr, c_ptr,
+        a_ptr,
+        b_ptr,
+        c_ptr,
         # Matrix dimensions
-        M, N, K,
+        M,
+        N,
+        K,
         # The stride variables represent how much to increase the ptr by when moving by 1
         # element in a particular dimension. E.g. `stride_am` is how much to increase `a_ptr`
         # by to get the element one row down (A has M rows).
-        stride_am, stride_ak,  #
-        stride_bk, stride_bn,  #
-        stride_cm, stride_cn,
+        stride_am,
+        stride_ak,  #
+        stride_bk,
+        stride_bn,  #
+        stride_cm,
+        stride_cn,
         # Meta-parameters
-        BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,  #
+        BLOCK_SIZE_M: tl.constexpr,
+        BLOCK_SIZE_N: tl.constexpr,
+        BLOCK_SIZE_K: tl.constexpr,  #
         GROUP_SIZE_M: tl.constexpr,  #
         ACTIVATION: tl.constexpr  #
 ):
@@ -230,8 +296,11 @@ def matmul_kernel(
     offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
     offs_k = tl.arange(0, BLOCK_SIZE_K)
 
-    a_ptrs = a_ptr + (offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak)  # got boardcast
-    b_ptrs = b_ptr + (offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
+    a_ptrs = a_ptr + (
+        offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak
+    )  # got boardcast
+    b_ptrs = b_ptr + (
+        offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
 
     # -----------------------------------------------------------
     # Iterate to compute a block of the C matrix.
@@ -242,8 +311,10 @@ def matmul_kernel(
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
         # Load the next block of A and B, generate a mask by checking the K dimension.
         # If it is out of bounds, set it to 0.
-        a = tl.load(a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
-        b = tl.load(b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
+        a = tl.load(
+            a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
+        b = tl.load(
+            b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
         # We accumulate along the K dimension.
         accumulator += tl.dot(a, b)
         # Advance the ptrs to the next K block.
@@ -259,7 +330,8 @@ def matmul_kernel(
     # Write back the block of the output matrix C with masks.
     offs_cm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
     offs_cn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-    c_ptrs = c_ptr + stride_cm * offs_cm[:, None] + stride_cn * offs_cn[None, :]
+    c_ptrs = c_ptr + stride_cm * offs_cm[:,
+                                         None] + stride_cn * offs_cn[None, :]
     c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
     tl.store(c_ptrs, c, mask=c_mask)
 
@@ -270,41 +342,107 @@ def leaky_relu(x):
     x = x + 1
     return tl.where(x >= 0, x, 0.01 * x)
 
+
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3,
-                      num_warps=8),
-        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-                      num_warps=4),
-        triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-                      num_warps=2),
-        triton.Config({'BLOCK_SIZE_M': 32, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-                      num_warps=2),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 256,
+                'BLOCK_SIZE_K': 64,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=3,
+            num_warps=8),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 256,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 64,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 32,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=4,
+            num_warps=4),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 64,
+                'BLOCK_SIZE_N': 32,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=5,
+            num_warps=2),
+        triton.Config(
+            {
+                'BLOCK_SIZE_M': 32,
+                'BLOCK_SIZE_N': 64,
+                'BLOCK_SIZE_K': 32,
+                'GROUP_SIZE_M': 8
+            },
+            num_stages=5,
+            num_warps=2),
     ],
     key=['M', 'N', 'K'],
 )
 @triton.jit
 def matmul_no_L2_kernel(
         # Pointers to matrices
-        a_ptr, b_ptr, c_ptr,
+        a_ptr,
+        b_ptr,
+        c_ptr,
         # Matrix dimensions
-        M, N, K,
+        M,
+        N,
+        K,
         # The stride variables represent how much to increase the ptr by when moving by 1
         # element in a particular dimension. E.g. `stride_am` is how much to increase `a_ptr`
         # by to get the element one row down (A has M rows).
-        stride_am, stride_ak,  #
-        stride_bk, stride_bn,  #
-        stride_cm, stride_cn,
+        stride_am,
+        stride_ak,  #
+        stride_bk,
+        stride_bn,  #
+        stride_cm,
+        stride_cn,
         # Meta-parameters
-        BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,  #
+        BLOCK_SIZE_M: tl.constexpr,
+        BLOCK_SIZE_N: tl.constexpr,
+        BLOCK_SIZE_K: tl.constexpr,  #
         GROUP_SIZE_M: tl.constexpr,  #
         ACTIVATION: tl.constexpr  #
 ):
@@ -333,8 +471,11 @@ def matmul_no_L2_kernel(
     offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
     offs_k = tl.arange(0, BLOCK_SIZE_K)
 
-    a_ptrs = a_ptr + (offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak)  # got boardcast
-    b_ptrs = b_ptr + (offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
+    a_ptrs = a_ptr + (
+        offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak
+    )  # got boardcast
+    b_ptrs = b_ptr + (
+        offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
 
     # -----------------------------------------------------------
     # Iterate to compute a block of the C matrix.
@@ -345,8 +486,10 @@ def matmul_no_L2_kernel(
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
         # Load the next block of A and B, generate a mask by checking the K dimension.
         # If it is out of bounds, set it to 0.
-        a = tl.load(a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
-        b = tl.load(b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
+        a = tl.load(
+            a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
+        b = tl.load(
+            b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
         # We accumulate along the K dimension.
         accumulator += tl.dot(a, b)
         # Advance the ptrs to the next K block.
@@ -362,7 +505,8 @@ def matmul_no_L2_kernel(
     # Write back the block of the output matrix C with masks.
     offs_cm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
     offs_cn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-    c_ptrs = c_ptr + stride_cm * offs_cm[:, None] + stride_cn * offs_cn[None, :]
+    c_ptrs = c_ptr + stride_cm * offs_cm[:,
+                                         None] + stride_cn * offs_cn[None, :]
     c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
     tl.store(c_ptrs, c, mask=c_mask)
 
@@ -382,16 +526,26 @@ def matmul(a, b, activation=""):
     # Allocates output.
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
     # 1D launch kernel where each block gets its own program.
-    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
+    grid = lambda META: (
+        triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(
+            N, META['BLOCK_SIZE_N']), )
     matmul_kernel[grid](
-        a, b, c,  #
-        M, N, K,  #
-        a.stride(0), a.stride(1),  #
-        b.stride(0), b.stride(1),  #
-        c.stride(0), c.stride(1),  #
+        a,
+        b,
+        c,  #
+        M,
+        N,
+        K,  #
+        a.stride(0),
+        a.stride(1),  #
+        b.stride(0),
+        b.stride(1),  #
+        c.stride(0),
+        c.stride(1),  #
         ACTIVATION=activation  #
     )
     return c
+
 
 def matmul_no_L2(a, b, activation=""):
     # Check constraints.
@@ -404,13 +558,23 @@ def matmul_no_L2(a, b, activation=""):
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
     # 1D launch kernel where each block gets its own program.
     # grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
-    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']), triton.cdiv(N, META['BLOCK_SIZE_N']), )
+    grid = lambda META: (
+        triton.cdiv(M, META['BLOCK_SIZE_M']),
+        triton.cdiv(N, META['BLOCK_SIZE_N']),
+    )
     matmul_no_L2_kernel[grid](
-        a, b, c,  #
-        M, N, K,  #
-        a.stride(0), a.stride(1),  #
-        b.stride(0), b.stride(1),  #
-        c.stride(0), c.stride(1),  #
+        a,
+        b,
+        c,  #
+        M,
+        N,
+        K,  #
+        a.stride(0),
+        a.stride(1),  #
+        b.stride(0),
+        b.stride(1),  #
+        c.stride(0),
+        c.stride(1),  #
         ACTIVATION=activation  #
     )
     return c
@@ -459,9 +623,12 @@ else:
 
 @triton.testing.perf_report(
     triton.testing.Benchmark(
-        x_names=['M', 'N', 'K'],  # Argument names to use as an x-axis for the plot
-        x_vals=[128 * i for i in range(2, 33)],  # Different possible values for `x_name`
-        line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
+        x_names=['M', 'N',
+                 'K'],  # Argument names to use as an x-axis for the plot
+        x_vals=[128 * i for i in range(2, 33)
+                ],  # Different possible values for `x_name`
+        line_arg=
+        'provider',  # Argument name whose value corresponds to a different line in the plot
         # Possible values for `line_arg`
         line_vals=['cublas', 'triton', 'triton_no_L2'],
         # Label name for the lines
@@ -469,7 +636,8 @@ else:
         # Line styles
         styles=[('green', '-'), ('blue', '-'), ('red', '-')],
         ylabel="TFLOPS",  # Label name for the y-axis
-        plot_name="matmul-performance",  # Name for the plot, used also as a file name for saving the plot.
+        plot_name=
+        "matmul-performance",  # Name for the plot, used also as a file name for saving the plot.
         args={},
     ))
 def benchmark(M, N, K, provider):
@@ -477,11 +645,14 @@ def benchmark(M, N, K, provider):
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
     quantiles = [0.5, 0.2, 0.8]
     if provider == 'cublas':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch.matmul(a, b), quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(
+            lambda: torch.matmul(a, b), quantiles=quantiles)
     if provider == 'triton':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul(a, b), quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(
+            lambda: matmul(a, b), quantiles=quantiles)
     if provider == 'triton_no_L2':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul_no_L2(a, b), quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(
+            lambda: matmul_no_L2(a, b), quantiles=quantiles)
     perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
     return perf(ms), perf(max_ms), perf(min_ms)
 
