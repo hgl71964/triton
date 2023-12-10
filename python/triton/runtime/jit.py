@@ -1174,7 +1174,9 @@ class asm_JITFunction(JITFunction):
                 device_type=device_type,
             )
 
-            from fgk import run_simulated_annealing, run_genetic_algorithm
+            import fgk
+            from fgk.simulated_annealing import run_simulated_annealing
+            from fgk.genetic_algorithm import run_genetic_algorithm
 
             # self.max_iterations = max_iterations
             # self.temperature = temperature
@@ -1189,7 +1191,7 @@ class asm_JITFunction(JITFunction):
 
             # TODO automatically extract args from signature
             # non_constexpr_arg_values can served as bench_args
-            opt_bin = ...
+            opt_bin = init_bin
             self.cache[device][key] = opt_bin
 
         bin = self.cache[device][key]

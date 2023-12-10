@@ -12,9 +12,9 @@ import torch
 from CuAsm.CubinFile import CubinFile
 
 # mutation
-from mutator import MutationEngine
+from fgk.mutator import MutationEngine
 from fgk.sample import Sample
-from utils.logger import get_logger
+from fgk.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
