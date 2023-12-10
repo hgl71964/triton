@@ -93,9 +93,8 @@ output_torch = x + y
 output_triton = add(x, y)
 print(output_torch)
 print(output_triton)
-print(
-    f'The maximum difference between torch and triton is '
-    f'{torch.max(torch.abs(output_torch - output_triton))}')
+print(f'The maximum difference between torch and triton is '
+      f'{torch.max(torch.abs(output_torch - output_triton))}')
 
 # %%
 # Seems like we're good to go!
@@ -130,11 +129,11 @@ def benchmark(size, provider):
     y = torch.rand(size, device='cuda', dtype=torch.float32)
     quantiles = [0.5, 0.2, 0.8]
     if provider == 'torch':
-        ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: x + y, quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: x + y,
+                                                     quantiles=quantiles)
     if provider == 'triton':
-        ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: add(x, y), quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: add(x, y),
+                                                     quantiles=quantiles)
     gbps = lambda ms: 12 * size / ms * 1e-6
     return gbps(ms), gbps(max_ms), gbps(min_ms)
 

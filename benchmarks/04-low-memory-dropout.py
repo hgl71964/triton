@@ -78,12 +78,11 @@ x_keep = (torch.rand(size=(10, )) > p).to(torch.int32).cuda()
 #
 output = dropout(x, x_keep=x_keep, p=p)
 print(
-    tabulate.tabulate(
-        [
-            ["input"] + x.tolist(),
-            ["keep mask"] + x_keep.tolist(),
-            ["output"] + output.tolist(),
-        ]))
+    tabulate.tabulate([
+        ["input"] + x.tolist(),
+        ["keep mask"] + x_keep.tolist(),
+        ["output"] + output.tolist(),
+    ]))
 
 # %%
 # Seeded dropout
@@ -147,13 +146,12 @@ output2 = seeded_dropout(x, p=0.5, seed=123)
 output3 = seeded_dropout(x, p=0.5, seed=512)
 
 print(
-    tabulate.tabulate(
-        [
-            ["input"] + x.tolist(),
-            ["output (seed = 123)"] + output.tolist(),
-            ["output (seed = 123)"] + output2.tolist(),
-            ["output (seed = 512)"] + output3.tolist(),
-        ]))
+    tabulate.tabulate([
+        ["input"] + x.tolist(),
+        ["output (seed = 123)"] + output.tolist(),
+        ["output (seed = 123)"] + output2.tolist(),
+        ["output (seed = 512)"] + output3.tolist(),
+    ]))
 
 # %%
 # Et Voilà! We have a triton kernel that applies the same dropout mask provided the seed is the same!

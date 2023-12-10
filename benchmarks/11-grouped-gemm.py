@@ -34,34 +34,30 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config(
-            {
-                'BLOCK_SIZE_M': 128,
-                'BLOCK_SIZE_N': 128,
-                'BLOCK_SIZE_K': 32,
-                'NUM_SM': 84,
-            }),
-        triton.Config(
-            {
-                'BLOCK_SIZE_M': 128,
-                'BLOCK_SIZE_N': 128,
-                'BLOCK_SIZE_K': 32,
-                'NUM_SM': 128,
-            }),
-        triton.Config(
-            {
-                'BLOCK_SIZE_M': 64,
-                'BLOCK_SIZE_N': 64,
-                'BLOCK_SIZE_K': 32,
-                'NUM_SM': 84,
-            }),
-        triton.Config(
-            {
-                'BLOCK_SIZE_M': 64,
-                'BLOCK_SIZE_N': 64,
-                'BLOCK_SIZE_K': 32,
-                'NUM_SM': 128,
-            }),
+        triton.Config({
+            'BLOCK_SIZE_M': 128,
+            'BLOCK_SIZE_N': 128,
+            'BLOCK_SIZE_K': 32,
+            'NUM_SM': 84,
+        }),
+        triton.Config({
+            'BLOCK_SIZE_M': 128,
+            'BLOCK_SIZE_N': 128,
+            'BLOCK_SIZE_K': 32,
+            'NUM_SM': 128,
+        }),
+        triton.Config({
+            'BLOCK_SIZE_M': 64,
+            'BLOCK_SIZE_N': 64,
+            'BLOCK_SIZE_K': 32,
+            'NUM_SM': 84,
+        }),
+        triton.Config({
+            'BLOCK_SIZE_M': 64,
+            'BLOCK_SIZE_N': 64,
+            'BLOCK_SIZE_K': 32,
+            'NUM_SM': 128,
+        }),
     ],
     key=['group_size'],
 )
@@ -118,8 +114,8 @@ def grouped_matmul_kernel(
             offs_k = tl.arange(0, BLOCK_SIZE_K)
             a_ptrs = a_ptr + offs_am[:, None] * lda + offs_k[None, :]
             b_ptrs = b_ptr + offs_k[:, None] * ldb + offs_bn[None, :]
-            accumulator = tl.zeros(
-                (BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+            accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N),
+                                   dtype=tl.float32)
             for kk in range(0, tl.cdiv(k, BLOCK_SIZE_K)):
                 # hint to Triton compiler to do proper loop pipelining
                 tl.multiple_of(a_ptrs, [16, 16])
@@ -285,10 +281,9 @@ def benchmark(N, provider):
         ms, min_ms, max_ms = triton.testing.do_bench(
             lambda: torch_perf_fn(group_A, group_B), quantiles=quantiles)
     if provider == 'triton':
-        ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: triton_perf_fn(
-                d_a_ptrs, d_b_ptrs, d_c_ptrs, d_g_sizes, d_g_lds, group_size),
-            quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_perf_fn(
+            d_a_ptrs, d_b_ptrs, d_c_ptrs, d_g_sizes, d_g_lds, group_size),
+                                                     quantiles=quantiles)
     return ms, max_ms, min_ms
 
 

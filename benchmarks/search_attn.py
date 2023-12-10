@@ -225,10 +225,9 @@ def attn_forward(q, k, v, causal, sm_scale):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty(
-        (q.shape[0], q.shape[1], q.shape[2]),
-        device=q.device,
-        dtype=torch.float32)
+    M = torch.empty((q.shape[0], q.shape[1], q.shape[2]),
+                    device=q.device,
+                    dtype=torch.float32)
     _attn_fwd[grid](
         q,
         k,
@@ -283,10 +282,9 @@ def get_cubin(q, k, v, causal, sm_scale):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty(
-        (q.shape[0], q.shape[1], q.shape[2]),
-        device=q.device,
-        dtype=torch.float32)
+    M = torch.empty((q.shape[0], q.shape[1], q.shape[2]),
+                    device=q.device,
+                    dtype=torch.float32)
     asm = _attn_fwd.only_compile(
         q,
         k,
@@ -342,10 +340,9 @@ def set_cubin(q, k, v, causal, sm_scale, cubin):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty(
-        (q.shape[0], q.shape[1], q.shape[2]),
-        device=q.device,
-        dtype=torch.float32)
+    M = torch.empty((q.shape[0], q.shape[1], q.shape[2]),
+                    device=q.device,
+                    dtype=torch.float32)
     _attn_fwd.hack_cubin(
         q,
         k,

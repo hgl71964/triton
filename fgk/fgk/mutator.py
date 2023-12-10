@@ -161,8 +161,9 @@ class MutationEngine:
             try:
                 warmup = self.config['warmup']
                 rep = self.config['rep']
-                ms = triton.testing.do_bench(
-                    self.kernel_func, warmup=warmup, rep=rep)
+                ms = triton.testing.do_bench(self.kernel_func,
+                                             warmup=warmup,
+                                             rep=rep)
             except RuntimeError as run_err:
                 # likely a cuda error
                 print(f'CUDA? Runtime Err: {run_err}')

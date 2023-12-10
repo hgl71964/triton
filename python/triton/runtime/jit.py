@@ -951,26 +951,64 @@ def jit(
 
 
 def asm_jit(
-    arg1,
-    arg2,
+    # sa
+    max_iterations=1000,
+    temperature=1.0,
+    cooling_rate=0.003,
+    noise_factor=0.1,
+    policy="single",
+    # ga
+    population_size=100,
+    generations=50,
+    mutation_rate=0.1,
+    tournament_size=5,
 ):
     def jit(fn): 
         def decorator(fn: T):
             assert callable(fn)
             return asm_JITFunction(
                 fn,
+                # sa
+                max_iterations=max_iterations,
+                temperature=temperature,
+                cooling_rate=cooling_rate,
+                noise_factor=noise_factor,
+                policy=policy,
+                # ga
+                population_size=population_size,
+                generations=generations,
+                mutation_rate=mutation_rate,
+                tournament_size=tournament_size,
+
+                # other
                 version=None,
                 do_not_specialize=None,
                 debug=None,
                 noinline=None,
-                # TODO add search strategy args
             )
         return decorator(fn)
     return jit
 
 class asm_JITFunction(JITFunction):
 
-    def __init__(self, fn, version=None, do_not_specialize=None, debug=None, noinline=None):
+    def __init__(self, fn,
+
+                # sa
+                max_iterations,
+                temperature,
+                cooling_rate,
+                noise_factor,
+                policy,
+                # ga
+                population_size,
+                generations,
+                mutation_rate,
+                tournament_size,
+
+                  version=None,
+                  do_not_specialize=None,
+                  debug=None,
+                  noinline=None):
         super(asm_JITFunction, self).__init__(
             fn, 
             version=version,
@@ -978,8 +1016,17 @@ class asm_JITFunction(JITFunction):
             debug=debug,
             noinline=noinline,
         )
+        self.max_iterations = max_iterations
+        self.temperature = temperature
+        self.cooling_rate = cooling_rate
+        self.noise_factor = noise_factor
+        self.policy = policy
 
-        # TODO add search strategy args
+        self.population_size = population_size
+        self.generations = generations
+        self.mutation_rate = mutation_rate
+        self.tournament_size = tournament_size
+
 
     def run(self, *args, **kwargs):
         from ..compiler import CompiledKernel, compile, get_arch_default_num_stages, get_arch_default_num_warps
@@ -1126,7 +1173,19 @@ class asm_JITFunction(JITFunction):
                 debug=self.debug,
                 device_type=device_type,
             )
+
             from fgk import run_simulated_annealing, run_genetic_algorithm
+
+            # self.max_iterations = max_iterations
+            # self.temperature = temperature
+            # self.cooling_rate = cooling_rate
+            # self.noise_factor = noise_factor
+            # self.policy = policy
+
+            # self.population_size = population_size
+            # self.generations = generations
+            # self.mutation_rate = mutation_rate
+            # self.tournament_size = tournament_size
 
             # TODO automatically extract args from signature
             # non_constexpr_arg_values can served as bench_args

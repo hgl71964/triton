@@ -218,20 +218,18 @@ def matmul_kernel_with_block_pointers(
     # Create block pointers for the first blocks of A and B.
     # We will advance this pointer as we move in the K direction and accumulate.
     # See above `Make a Block Pointer` section for details.
-    a_block_ptr = tl.make_block_ptr(
-        base=a_ptr,
-        shape=(M, K),
-        strides=(stride_am, stride_ak),
-        offsets=(pid_m * BLOCK_SIZE_M, 0),
-        block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
-        order=(1, 0))
-    b_block_ptr = tl.make_block_ptr(
-        base=b_ptr,
-        shape=(K, N),
-        strides=(stride_bk, stride_bn),
-        offsets=(0, pid_n * BLOCK_SIZE_N),
-        block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
-        order=(1, 0))
+    a_block_ptr = tl.make_block_ptr(base=a_ptr,
+                                    shape=(M, K),
+                                    strides=(stride_am, stride_ak),
+                                    offsets=(pid_m * BLOCK_SIZE_M, 0),
+                                    block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
+                                    order=(1, 0))
+    b_block_ptr = tl.make_block_ptr(base=b_ptr,
+                                    shape=(K, N),
+                                    strides=(stride_bk, stride_bn),
+                                    offsets=(0, pid_n * BLOCK_SIZE_N),
+                                    block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
+                                    order=(1, 0))
 
     # -----------------------------------------------------------
     # Iterate to compute a block of the C matrix.
@@ -258,13 +256,13 @@ def matmul_kernel_with_block_pointers(
     # ----------------------------------------------------------------
     # Write back the block of the output matrix C with boundary checks.
     # See above `Load/Store a Block Pointer` section for details.
-    c_block_ptr = tl.make_block_ptr(
-        base=c_ptr,
-        shape=(M, N),
-        strides=(stride_cm, stride_cn),
-        offsets=(pid_m * BLOCK_SIZE_M, pid_n * BLOCK_SIZE_N),
-        block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_N),
-        order=(1, 0))
+    c_block_ptr = tl.make_block_ptr(base=c_ptr,
+                                    shape=(M, N),
+                                    strides=(stride_cm, stride_cn),
+                                    offsets=(pid_m * BLOCK_SIZE_M,
+                                             pid_n * BLOCK_SIZE_N),
+                                    block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_N),
+                                    order=(1, 0))
     tl.store(c_block_ptr, c, boundary_check=(0, 1))
 
 
@@ -280,9 +278,8 @@ def matmul(a, b):
     # Allocates output.
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
     # 1D launch kernel where each block gets its own program.
-    grid = lambda META: (
-        triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(
-            N, META['BLOCK_SIZE_N']), )
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(
+        N, META['BLOCK_SIZE_N']), )
     matmul_kernel_with_block_pointers[grid](
         a,
         b,

@@ -60,9 +60,8 @@ def create_population(pop_size: int,
     return population
 
 
-def tournament_selection(
-        population: list[GeneticSample], tournament_size,
-        eng: MutationEngine) -> list[GeneticSample]:
+def tournament_selection(population: list[GeneticSample], tournament_size,
+                         eng: MutationEngine) -> list[GeneticSample]:
     selected = []
     for _ in range(len(population)):
         tournament = random.sample(population, tournament_size)
@@ -144,8 +143,8 @@ def genetic_algorithm(
 
     _t1 = time.perf_counter()
     for generation in range(generations):
-        selected_population = tournament_selection(
-            population, tournament_size, eng)
+        selected_population = tournament_selection(population, tournament_size,
+                                                   eng)
 
         cmp = lambda x: x if x is not None else float("-inf")
         perfs = [x.perf for x in selected_population]
@@ -155,8 +154,8 @@ def genetic_algorithm(
         new_population = []
         while len(new_population) < population_size:
             parent1, parent2 = random.sample(selected_population, 2)
-            child1, child2, child3, child4 = crossover(
-                parent1, parent2, mutation_rate, eng)
+            child1, child2, child3, child4 = crossover(parent1, parent2,
+                                                       mutation_rate, eng)
             new_population.extend([child1, child2, child3, child4])
 
         population = new_population

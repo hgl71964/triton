@@ -63,8 +63,8 @@ def generate_neighbor(sample: SimulatedSample, n_choices, policy):
     return neighbor
 
 
-def acceptance_probability(
-        old_fitness, new_fitness, temperature, noise_factor):
+def acceptance_probability(old_fitness, new_fitness, temperature,
+                           noise_factor):
     noise = random.uniform(-noise_factor, noise_factor)
     adjusted_difference = new_fitness - old_fitness + noise
 

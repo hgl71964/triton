@@ -41,9 +41,8 @@ flags.DEFINE_integer("hack", 0, "whether to hack")
 flags.DEFINE_string("fn", None, "cubin name to load")
 
 
-def softmax_kernel(
-        output_ptr, input_ptr, input_row_stride, output_row_stride, n_cols,
-        BLOCK_SIZE: tl.constexpr):
+def softmax_kernel(output_ptr, input_ptr, input_row_stride, output_row_stride,
+                   n_cols, BLOCK_SIZE: tl.constexpr):
     # The rows of the softmax are independent, so we parallelize across those
     row_idx = tl.program_id(0)
     # The stride represents how much we need to increase the pointer to advance 1 row
@@ -165,8 +164,8 @@ def main(_):
         file_path = os.path.join(FLAGS.default_out_path, FLAGS.fn)
         with open(file_path, 'rb') as file:
             cubin = file.read()
-        _ = get_cubin(
-            dummy, kernel)  # this populate the cache with the same key
+        _ = get_cubin(dummy,
+                      kernel)  # this populate the cache with the same key
         set_cubin(dummy, kernel, cubin)
 
     ## TEST

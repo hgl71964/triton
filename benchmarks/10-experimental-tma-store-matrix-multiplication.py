@@ -84,20 +84,18 @@ def matmul_kernel(
     block_offset_m = pid_m * BLOCK_SIZE_M
     block_offset_n = pid_n * BLOCK_SIZE_N
 
-    a_tile_ptr = tl.make_block_ptr(
-        base=a_ptr,
-        shape=(M, K),
-        strides=(stride_am, stride_ak),
-        offsets=(block_offset_m, 0),
-        block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
-        order=(1, 0))
-    b_tile_ptr = tl.make_block_ptr(
-        base=b_ptr,
-        shape=(K, N),
-        strides=(stride_bk, stride_bn),
-        offsets=(0, block_offset_n),
-        block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
-        order=(0, 1))
+    a_tile_ptr = tl.make_block_ptr(base=a_ptr,
+                                   shape=(M, K),
+                                   strides=(stride_am, stride_ak),
+                                   offsets=(block_offset_m, 0),
+                                   block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
+                                   order=(1, 0))
+    b_tile_ptr = tl.make_block_ptr(base=b_ptr,
+                                   shape=(K, N),
+                                   strides=(stride_bk, stride_bn),
+                                   offsets=(0, block_offset_n),
+                                   block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
+                                   order=(0, 1))
     accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
 
     for k in range(0, K, BLOCK_SIZE_K):
@@ -107,13 +105,12 @@ def matmul_kernel(
         a_tile_ptr = tl.advance(a_tile_ptr, [0, BLOCK_SIZE_K])
         b_tile_ptr = tl.advance(b_tile_ptr, [BLOCK_SIZE_K, 0])
 
-    c_block_ptr = tl.make_block_ptr(
-        base=c_ptr,
-        shape=(M, N),
-        strides=(stride_cm, stride_cn),
-        offsets=(block_offset_m, block_offset_n),
-        block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_N),
-        order=(1, 0))
+    c_block_ptr = tl.make_block_ptr(base=c_ptr,
+                                    shape=(M, N),
+                                    strides=(stride_cm, stride_cn),
+                                    offsets=(block_offset_m, block_offset_n),
+                                    block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_N),
+                                    order=(1, 0))
 
     tl.store(c_block_ptr, accumulator)
 
@@ -130,9 +127,8 @@ def matmul(a, b):
     c = torch.empty((M, N), device=a.device, dtype=torch.float32)
 
     def grid(META):
-        return (
-            triton.cdiv(M, META['BLOCK_SIZE_M']) *
-            triton.cdiv(N, META['BLOCK_SIZE_N']), )
+        return (triton.cdiv(M, META['BLOCK_SIZE_M']) *
+                triton.cdiv(N, META['BLOCK_SIZE_N']), )
 
     matmul_kernel[grid](
         a_ptr=a,
@@ -179,9 +175,8 @@ assert_close(c, golden, rtol=1e-2, atol=1e-3, check_dtype=False)
         # label name for the lines
         line_names=["cuBLAS", "Triton"],
         # line styles
-        styles=[
-            ('green', '-'), ('green', '--'), ('blue', '-'), ('blue', '--')
-        ],
+        styles=[('green', '-'), ('green', '--'), ('blue', '-'),
+                ('blue', '--')],
         ylabel="TFLOPS",  # label name for the y-axis
         plot_name="matmul-performance",
         # name for the plot. Used also as a file name for saving the plot.
@@ -198,11 +193,10 @@ def benchmark(M, N, K, provider):
             quantiles=quantiles,
             fast_flush=False)
     if provider == 'triton':
-        ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: matmul(a, b),
-            rep=100,
-            quantiles=quantiles,
-            fast_flush=False)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul(a, b),
+                                                     rep=100,
+                                                     quantiles=quantiles,
+                                                     fast_flush=False)
 
     def perf(ms):
         return 2 * M * N * K * 1e-12 / (ms * 1e-3)

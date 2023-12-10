@@ -89,20 +89,18 @@ def matmul_kernel(
     block_offset_m = pid_m * BLOCK_SIZE_M
     block_offset_n = pid_n * BLOCK_SIZE_N
 
-    a_tile_ptr = tl.make_block_ptr(
-        base=a_ptr,
-        shape=(M, K),
-        strides=(stride_am, stride_ak),
-        offsets=(block_offset_m, 0),
-        block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
-        order=(A_ORDER_0, A_ORDER_1))
-    b_tile_ptr = tl.make_block_ptr(
-        base=b_ptr,
-        shape=(K, N),
-        strides=(stride_bk, stride_bn),
-        offsets=(0, block_offset_n),
-        block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
-        order=(B_ORDER_0, B_ORDER_1))
+    a_tile_ptr = tl.make_block_ptr(base=a_ptr,
+                                   shape=(M, K),
+                                   strides=(stride_am, stride_ak),
+                                   offsets=(block_offset_m, 0),
+                                   block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
+                                   order=(A_ORDER_0, A_ORDER_1))
+    b_tile_ptr = tl.make_block_ptr(base=b_ptr,
+                                   shape=(K, N),
+                                   strides=(stride_bk, stride_bn),
+                                   offsets=(0, block_offset_n),
+                                   block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
+                                   order=(B_ORDER_0, B_ORDER_1))
     z = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
 
     offs_m = block_offset_m + tl.arange(0, BLOCK_SIZE_M)
@@ -131,9 +129,8 @@ def matmul(a, b, a_order, b_order):
     z = torch.empty((M, N), device=a.device, dtype=torch.float16)
 
     def grid(META):
-        return (
-            triton.cdiv(M, META['BLOCK_SIZE_M']) *
-            triton.cdiv(N, META['BLOCK_SIZE_N']), )
+        return (triton.cdiv(M, META['BLOCK_SIZE_M']) *
+                triton.cdiv(N, META['BLOCK_SIZE_N']), )
 
     matmul_kernel[grid](
         a_ptr=a,
@@ -203,9 +200,8 @@ def test_matmul():
         # label name for the lines
         line_names=["cuBLAS", "Triton"],
         # line styles
-        styles=[
-            ('green', '-'), ('green', '--'), ('blue', '-'), ('blue', '--')
-        ],
+        styles=[('green', '-'), ('green', '--'), ('blue', '-'),
+                ('blue', '--')],
         ylabel="TFLOPS",  # label name for the y-axis
         plot_name="matmul-performance",
         # name for the plot. Used also as a file name for saving the plot.

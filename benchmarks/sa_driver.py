@@ -156,14 +156,11 @@ def main(_):
     ## reference
     for _ in range(FLAGS.test_sample):
         q = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
-                        device="cuda").normal_(
-                            mean=0.0, std=0.5)
+                        device="cuda").normal_(mean=0.0, std=0.5)
         k = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
-                        device="cuda").normal_(
-                            mean=0.0, std=0.5)
+                        device="cuda").normal_(mean=0.0, std=0.5)
         v = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
-                        device="cuda").normal_(
-                            mean=0.0, std=0.5)
+                        device="cuda").normal_(mean=0.0, std=0.5)
 
         M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
         p = torch.matmul(q, k.transpose(2, 3)) * sm_scale

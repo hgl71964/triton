@@ -296,11 +296,10 @@ def matmul_kernel(
     offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
     offs_k = tl.arange(0, BLOCK_SIZE_K)
 
-    a_ptrs = a_ptr + (
-        offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak
-    )  # got boardcast
-    b_ptrs = b_ptr + (
-        offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
+    a_ptrs = a_ptr + (offs_am[:, None] * stride_am +
+                      offs_k[None, :] * stride_ak)  # got boardcast
+    b_ptrs = b_ptr + (offs_k[:, None] * stride_bk +
+                      offs_bn[None, :] * stride_bn)
 
     # -----------------------------------------------------------
     # Iterate to compute a block of the C matrix.
@@ -311,10 +310,12 @@ def matmul_kernel(
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
         # Load the next block of A and B, generate a mask by checking the K dimension.
         # If it is out of bounds, set it to 0.
-        a = tl.load(
-            a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
-        b = tl.load(
-            b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
+        a = tl.load(a_ptrs,
+                    mask=offs_k[None, :] < K - k * BLOCK_SIZE_K,
+                    other=0.0)
+        b = tl.load(b_ptrs,
+                    mask=offs_k[:, None] < K - k * BLOCK_SIZE_K,
+                    other=0.0)
         # We accumulate along the K dimension.
         accumulator += tl.dot(a, b)
         # Advance the ptrs to the next K block.
@@ -471,11 +472,10 @@ def matmul_no_L2_kernel(
     offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
     offs_k = tl.arange(0, BLOCK_SIZE_K)
 
-    a_ptrs = a_ptr + (
-        offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak
-    )  # got boardcast
-    b_ptrs = b_ptr + (
-        offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
+    a_ptrs = a_ptr + (offs_am[:, None] * stride_am +
+                      offs_k[None, :] * stride_ak)  # got boardcast
+    b_ptrs = b_ptr + (offs_k[:, None] * stride_bk +
+                      offs_bn[None, :] * stride_bn)
 
     # -----------------------------------------------------------
     # Iterate to compute a block of the C matrix.
@@ -486,10 +486,12 @@ def matmul_no_L2_kernel(
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
         # Load the next block of A and B, generate a mask by checking the K dimension.
         # If it is out of bounds, set it to 0.
-        a = tl.load(
-            a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
-        b = tl.load(
-            b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
+        a = tl.load(a_ptrs,
+                    mask=offs_k[None, :] < K - k * BLOCK_SIZE_K,
+                    other=0.0)
+        b = tl.load(b_ptrs,
+                    mask=offs_k[:, None] < K - k * BLOCK_SIZE_K,
+                    other=0.0)
         # We accumulate along the K dimension.
         accumulator += tl.dot(a, b)
         # Advance the ptrs to the next K block.
@@ -526,9 +528,8 @@ def matmul(a, b, activation=""):
     # Allocates output.
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
     # 1D launch kernel where each block gets its own program.
-    grid = lambda META: (
-        triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(
-            N, META['BLOCK_SIZE_N']), )
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(
+        N, META['BLOCK_SIZE_N']), )
     matmul_kernel[grid](
         a,
         b,
@@ -648,8 +649,8 @@ def benchmark(M, N, K, provider):
         ms, min_ms, max_ms = triton.testing.do_bench(
             lambda: torch.matmul(a, b), quantiles=quantiles)
     if provider == 'triton':
-        ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: matmul(a, b), quantiles=quantiles)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul(a, b),
+                                                     quantiles=quantiles)
     if provider == 'triton_no_L2':
         ms, min_ms, max_ms = triton.testing.do_bench(
             lambda: matmul_no_L2(a, b), quantiles=quantiles)
