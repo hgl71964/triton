@@ -158,9 +158,14 @@ class MutationEngine:
 
         # buffer IO
         cap = CuAsmParser()
-        cap.parse_from_buffer(mutated_sass)
-        cubin = cap.dump_cubin()
-        self.updater(*self.bench_args, cubin)
+        assemble_ok = True
+        try:
+            cap.parse_from_buffer(mutated_sass)
+            cubin = cap.dump_cubin()
+            self.updater(*self.bench_args, cubin)
+        except Exception as e:
+            print(f'Assemble failed: {e}')
+            assemble_ok = False
 
         # file IO
         # with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
@@ -181,17 +186,20 @@ class MutationEngine:
         ## XXX NOT test here to allow possible intermediate incorrect results
 
         # BENCH
-        try:
-            warmup = self.config['warmup']
-            rep = self.config['rep']
-            fn = lambda: self.kernel_func(*self.bench_args)
-            ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
-        except ZeroDivisionError as zero_err:
-            # Catch a specific exception (ZeroDivisionError in this case)
-            print(f"Caught a ZeroDivisionError: {zero_err}")
-            ms = -1
-        except Exception as e:
-            print(f'Run error: {e}')
+        if assemble_ok:
+            try:
+                warmup = self.config['warmup']
+                rep = self.config['rep']
+                fn = lambda: self.kernel_func(*self.bench_args)
+                ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            except RuntimeError as run_err:
+                # likely a cuda error
+                print(f'CUDA? Runtime Err: {run_err}')
+                ms = -1
+            except Exception as e:
+                print(f'Other error: {e}')
+                raise e
+        else:
             ms = -1
 
         total_flops = self.config.get('total_flops', None)
