@@ -14,6 +14,7 @@ from CuAsm.CubinFile import CubinFile
 # mutation
 from mutator import MutationEngine
 from sample import Sample
+from logger import get_logger
 
 # kernel
 from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
@@ -38,6 +39,8 @@ flags.DEFINE_float("temperature", 1.0, "")
 flags.DEFINE_float("cooling_rate", 0.003, "")
 flags.DEFINE_float("noise_factor", 0.1, "")
 flags.DEFINE_string("policy", "single", "mutation policy; single or all")
+
+logger = get_logger(__name__)
 
 
 class SimulatedSample(Sample):
@@ -113,7 +116,7 @@ def simulated_annealing(
         new_solution = generate_neighbor(current_solution, n_choices, policy)
         new_fitness = eng.get_perf(new_solution)
 
-        print(
+        logger.info(
             f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}'
         )
         if acceptance_probability(current_fitness, new_fitness,
@@ -231,7 +234,7 @@ def main(_):
 
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
-    print(f'Performance: {best_fitness:.2f}; Search time: {hours:.2f}h')
+    logger.info(f'Performance: {best_fitness:.2f}; Search time: {hours:.2f}h')
 
 
 if __name__ == "__main__":

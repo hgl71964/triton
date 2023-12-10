@@ -643,6 +643,7 @@ class CompiledKernel:
     
     def hack_cubin(self, cubin):
         self.asm["cubin"] = cubin
+        self.cu_module = None  # force to reload 
 
     def _init_handles(self):
         if self.cu_module is not None:
@@ -663,6 +664,7 @@ class CompiledKernel:
         if self.shared > max_shared:
             raise OutOfResources(self.shared, max_shared, "shared memory")
 
+        # print('loading ' + bin_path)
         mod, func, n_regs, n_spills = fn_load_binary(self.metadata["name"], self.asm[bin_path], self.shared, device)
 
         self.n_spills = n_spills
