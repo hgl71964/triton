@@ -13,6 +13,8 @@ from triton.runtime.jit import JITFunction
 from CuAsm.CuAsmParser import CuAsmParser
 from CuAsm.CubinFile import CubinFile
 
+from sample import Sample
+
 
 class MutationEngine:
 
@@ -151,7 +153,7 @@ class MutationEngine:
         return barr, read, write, yield_flag, stall_count
 
     @lru_cache(maxsize=1000)
-    def get_perf(self, sample):
+    def get_perf(self, sample: Sample):
         mutated_kernel = sample.kernel_section[self.kernel_start_line:]
         mutated_sass = deepcopy(self.sass)
         mutated_sass[self.start_line:self.end_line + 1] = mutated_kernel

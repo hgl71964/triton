@@ -1,4 +1,3 @@
-    
 from copy import deepcopy
 from abc import ABC, abstractmethod
 
@@ -81,7 +80,7 @@ class Sample(ABC):
         # dimension of the optimization problem
         self.dims = len(self.candidates)
         return self.candidates
-    
+
     @abstractmethod
     def apply(self, index, action):
         pass
@@ -90,7 +89,7 @@ class Sample(ABC):
         self.actions = actions
         for index, action in zip(indexes, actions):
             self.apply(index, action)
-    
+
 
 class CtrlSample(Sample):
     """
@@ -114,10 +113,10 @@ class CtrlSample(Sample):
                 if yield_flag is None or stall_count is None:
                     continue
 
-                if yield_flag == 'Y': 
+                if yield_flag == 'Y':
                     self.candidates.append(i)
                     lines.append(line)
-                elif int(stall_count[-2] ) > 3:
+                elif int(stall_count[-2]) > 3:
                     self.candidates.append(i)
                     lines.append(line)
 
@@ -129,7 +128,7 @@ class CtrlSample(Sample):
         lineno = self.candidates[index]
         line = self.kernel_section[lineno]
         self.kernel_section[lineno] = self._set_yield_for_line(line, action)
-    
+
     def _set_yield_for_line(self, line: str, action: int):
         # NOTE: the line is guranteed to be a valid asm line
         index = -1
@@ -137,14 +136,14 @@ class CtrlSample(Sample):
             if char == 'S':
                 index = i
                 break
-        
+
         if index == -1:
             raise RuntimeError(f'invalid line: {line}')
-        
+
         if action == 1:
-            line[index-2] = 'Y'
+            line[index - 2] = 'Y'
         elif action == -1:
-            line[index-2] = '-'
+            line[index - 2] = '-'
         elif action == 0:
             pass
         else:

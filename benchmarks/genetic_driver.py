@@ -9,10 +9,15 @@ import torch
 
 from CuAsm.CubinFile import CubinFile
 
-# utils
-from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
+# asm
+from CuAsm.CubinFile import CubinFile
+
+# mutation
 from mutator import MutationEngine
 from sample import Sample
+
+# kernel
+from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
 
 from absl import app
 from absl import flags
@@ -55,10 +60,11 @@ class GeneticSample(Sample):
             assert False, f'invalid action: {action}'
 
 
-def create_population(pop_size: int, eng: MutationEngine) -> list[GeneticSample]:
+def create_population(pop_size: int,
+                      init_sample: GeneticSample) -> list[GeneticSample]:
     population = []
     for _ in range(pop_size):
-        sample = GeneticSample(eng.kernel_section, eng)
+        sample = GeneticSample(init_sample.kernel_section, init_sample.engine)
         mutable = sample.get_mutable()
         n = len(mutable)
         indexes = [i for i in range(n)]
@@ -140,6 +146,43 @@ def crossover(
     return child1, child2, child3, child4
 
 
+def genetic_algorithm(
+    init_sample,
+    population_size,
+    generations,
+    tournament_size,
+    mutation_rate,
+    eng: MutationEngine,
+):
+    population = create_population(population_size, init_sample)
+
+    _t1 = time.perf_counter()
+    for generation in range(generations):
+        selected_population = tournament_selection(
+            population, tournament_size, eng)
+
+        cmp = lambda x: x if x is not None else float("-inf")
+        perfs = [x.perf for x in selected_population]
+        print(f'generation {generation}: best perf: {max(perfs, key=cmp):.2f}')
+
+        new_population = []
+        while len(new_population) < population_size:
+            parent1, parent2 = random.sample(selected_population, 2)
+            child1, child2, child3, child4 = crossover(
+                parent1, parent2, mutation_rate, eng)
+            new_population.extend([child1, child2, child3, child4])
+
+        population = new_population
+
+    best_individual = max(population, key=eng.get_perf)
+    _t2 = time.perf_counter()
+    hours = (_t2 - _t1) / 3600
+    print(
+        f'Performance: {eng.get_perf(best_individual)}; search time: {hours:.2f}h'
+    )
+    return best_individual
+
+
 def main(_):
     # ===== seed =====
     random.seed(FLAGS.seed)
@@ -197,11 +240,6 @@ def main(_):
         'rep': rep,
     }
 
-    population_size = FLAGS.population_size
-    generations = FLAGS.generations
-    mutation_rate = FLAGS.mutation_rate
-    tournament_size = FLAGS.tournament_size
-
     # get cubin and asm (the initial have to file IO)
     cubin = get_cubin(q, k, v, causal, sm_scale)
     folder = f'{FLAGS.default_out_path}'
@@ -228,43 +266,17 @@ def main(_):
         config,
     )
 
-    # ===== start =====
     sample = GeneticSample(eng.kernel_section, eng)
     init_perf = eng.get_perf(sample)
     print(f'init perf: {init_perf:.2f}')
 
-    population = create_population(population_size, eng)
-
-    _t1 = time.perf_counter()
-    for generation in range(generations):
-        # Select individuals for reproduction
-        selected_population = tournament_selection(
-            population, tournament_size, eng)
-
-        # TODO for some reasons, there might be None perf
-        cmp =lambda x: x.perf if x.perf is not None else float("-inf")
-        print(f'generation {generation}: best perf: {max(selected_population, key=cmp):.2f}')
-
-        # Create next generation through crossover and mutation
-        new_population = []
-        while len(new_population) < population_size:
-            parent1, parent2 = random.sample(selected_population, 2)
-            # child1, child2 = crossover(parent1, parent2)
-            # new_population.extend([child1, child2])
-            child1, child2, child3, child4 = crossover(
-                parent1, parent2, mutation_rate, eng)
-            new_population.extend([child1, child2, child3, child4])
-
-        # Replace old population with new population
-        population = new_population
-
-    # Find the best individual after all generations
-    best_individual = max(population, key=eng.get_perf)
-
-    _t2 = time.perf_counter()
-    hours = (_t2 - _t1) / 3600
-    print(
-        f'Performance: {eng.get_perf(best_individual)}; search time: {hours:.2f}h'
+    best_sample = genetic_algorithm(
+        sample,
+        FLAGS.population_size,
+        FLAGS.generations,
+        FLAGS.tournament_size,
+        FLAGS.mutation_rate,
+        eng,
     )
 
 

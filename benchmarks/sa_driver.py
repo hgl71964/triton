@@ -8,12 +8,15 @@ from copy import deepcopy
 import numpy as np
 import torch
 
+# asm
 from CuAsm.CubinFile import CubinFile
 
-# utils
-from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
+# mutation
 from mutator import MutationEngine
 from sample import Sample
+
+# kernel
+from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
 
 from absl import app
 from absl import flags
@@ -56,7 +59,6 @@ class SimulatedSample(Sample):
             pass
         else:
             assert False, f'invalid action: {action}'
-
 
 
 def generate_neighbor(sample: SimulatedSample, n_choices, policy):
