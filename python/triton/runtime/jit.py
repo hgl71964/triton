@@ -1111,7 +1111,7 @@ class asm_JITFunction(JITFunction):
             ):
                 return None
 
-            self.cache[device][key] = compile(
+            init_bin = compile(
                 self,
                 signature=signature,
                 device=device,
@@ -1126,9 +1126,12 @@ class asm_JITFunction(JITFunction):
                 debug=self.debug,
                 device_type=device_type,
             )
-            # TODO automatically extract args from signature
+            from fgk import run_simulated_annealing, run_genetic_algorithm
 
-            # TODO hach the binary here
+            # TODO automatically extract args from signature
+            # non_constexpr_arg_values can served as bench_args
+            opt_bin = ...
+            self.cache[device][key] = opt_bin
 
         bin = self.cache[device][key]
         if not warmup:
