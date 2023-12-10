@@ -15,6 +15,7 @@ from CuAsm.CubinFile import CubinFile
 # mutation
 from mutator import MutationEngine
 from sample import Sample
+from logger import get_logger
 
 # kernel
 from search_attn import _attn_fwd, get_cubin, set_cubin, attn_forward
@@ -38,22 +39,31 @@ flags.DEFINE_integer("generations", 50, "")
 flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
 
+logger = get_logger(__name__)
+
 
 class GeneticSample(Sample):
 
     def apply(self, index, action):
         lineno = self.candidates[index]
         if action == -1:
-            self.kernel_section[lineno - 1], self.kernel_section[
-                lineno] = self.kernel_section[lineno], self.kernel_section[
-                    lineno - 1]
-            self.candidates[index] -= 1
+            try:
+                self.kernel_section[lineno - 1], self.kernel_section[
+                    lineno] = self.kernel_section[lineno], self.kernel_section[
+                        lineno - 1]
+                self.candidates[index] -= 1
+            except IndexError as e:
+                # it is possible that the index is out of range during mutation
+                print(f'IndexError: {lineno}; {len(self.kernel_section)};')
         elif action == 1:
-            self.kernel_section[lineno], self.kernel_section[
-                lineno +
-                1] = self.kernel_section[lineno +
-                                         1], self.kernel_section[lineno]
-            self.candidates[index] += 1
+            try:
+                self.kernel_section[lineno], self.kernel_section[
+                    lineno +
+                    1] = self.kernel_section[lineno +
+                                             1], self.kernel_section[lineno]
+                self.candidates[index] += 1
+            except IndexError as e:
+                print(f'IndexError: {lineno}; {len(self.kernel_section)};')
         elif action == 0:
             pass
         else:
@@ -163,7 +173,8 @@ def genetic_algorithm(
 
         cmp = lambda x: x if x is not None else float("-inf")
         perfs = [x.perf for x in selected_population]
-        print(f'generation {generation}: best perf: {max(perfs, key=cmp):.2f}')
+        logger.info(
+            f'generation {generation}: best perf: {max(perfs, key=cmp):.2f}')
 
         new_population = []
         while len(new_population) < population_size:
@@ -177,7 +188,7 @@ def genetic_algorithm(
     best_individual = max(population, key=eng.get_perf)
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
-    print(
+    logger.info(
         f'Performance: {eng.get_perf(best_individual)}; search time: {hours:.2f}h'
     )
     return best_individual
@@ -268,7 +279,7 @@ def main(_):
 
     sample = GeneticSample(eng.kernel_section, eng)
     init_perf = eng.get_perf(sample)
-    print(f'init perf: {init_perf:.2f}')
+    logger.info(f'init perf: {init_perf:.2f}')
 
     best_sample = genetic_algorithm(
         sample,
