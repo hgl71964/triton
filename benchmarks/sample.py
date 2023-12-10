@@ -1,9 +1,11 @@
+    
 from copy import deepcopy
+from abc import ABC, abstractmethod
 
 from constant import MUTABLES, BAN
 
 
-class Sample:
+class Sample(ABC):
 
     def __init__(self, kernel_section: list[str], engine):
         self.kernel_section = deepcopy(kernel_section)
@@ -12,6 +14,7 @@ class Sample:
         self.candidates = []  # list of index mutable
         self.dims = None
         self._perf = None
+        self.actions = []
 
     def __eq__(self, other):
         if not isinstance(other, Sample):
@@ -78,3 +81,73 @@ class Sample:
         # dimension of the optimization problem
         self.dims = len(self.candidates)
         return self.candidates
+    
+    @abstractmethod
+    def apply(self, index, action):
+        pass
+
+    def apply_all(self, indexes, actions):
+        self.actions = actions
+        for index, action in zip(indexes, actions):
+            self.apply(index, action)
+    
+
+class CtrlSample(Sample):
+    """
+    only Mutate the control code
+    """
+
+    def get_mutable(self) -> list[int]:
+        if self.dims is not None:
+            return self.candidates
+
+        lines = []
+        for i, line in enumerate(self.kernel_section):
+            line = line.strip()
+            # skip headers
+            if len(line) > 0 and line[0] == '[':
+                out = self.engine.decode(line)
+                ctrl_code, _, _, _, _, _ = out
+
+                out = self.engine.decode_ctrl_code(ctrl_code)
+                _, _, _, yield_flag, stall_count = out
+                if yield_flag is None or stall_count is None:
+                    continue
+
+                if yield_flag == 'Y': 
+                    self.candidates.append(i)
+                    lines.append(line)
+                elif int(stall_count[-2] ) > 3:
+                    self.candidates.append(i)
+                    lines.append(line)
+
+        # dimension of the optimization problem
+        self.dims = len(self.candidates)
+        return self.candidates
+
+    def apply(self, index, action):
+        lineno = self.candidates[index]
+        line = self.kernel_section[lineno]
+        self.kernel_section[lineno] = self._set_yield_for_line(line, action)
+    
+    def _set_yield_for_line(self, line: str, action: int):
+        # NOTE: the line is guranteed to be a valid asm line
+        index = -1
+        for i, char in enumerate(line):
+            if char == 'S':
+                index = i
+                break
+        
+        if index == -1:
+            raise RuntimeError(f'invalid line: {line}')
+        
+        if action == 1:
+            line[index-2] = 'Y'
+        elif action == -1:
+            line[index-2] = '-'
+        elif action == 0:
+            pass
+        else:
+            raise RuntimeError(f'invalid action: {action}')
+
+        return line

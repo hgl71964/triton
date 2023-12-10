@@ -34,16 +34,7 @@ flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
 
 
-class GA_Sample(Sample):
-
-    def __init__(self, kernel_section: list[str], engine):
-        self.kernel_section = deepcopy(kernel_section)
-        self.engine = engine
-
-        self.candidates = []  # list of index mutable
-        self.dims = None
-        self._perf = None
-        self.actions = []
+class GeneticSample(Sample):
 
     def apply(self, index, action):
         lineno = self.candidates[index]
@@ -63,16 +54,11 @@ class GA_Sample(Sample):
         else:
             assert False, f'invalid action: {action}'
 
-    def apply_all(self, indexes, actions):
-        self.actions = actions
-        for index, action in zip(indexes, actions):
-            self.apply(index, action)
 
-
-def create_population(pop_size: int, eng: MutationEngine) -> list[GA_Sample]:
+def create_population(pop_size: int, eng: MutationEngine) -> list[GeneticSample]:
     population = []
     for _ in range(pop_size):
-        sample = GA_Sample(eng.kernel_section, eng)
+        sample = GeneticSample(eng.kernel_section, eng)
         mutable = sample.get_mutable()
         n = len(mutable)
         indexes = [i for i in range(n)]
@@ -83,14 +69,15 @@ def create_population(pop_size: int, eng: MutationEngine) -> list[GA_Sample]:
 
 
 def tournament_selection(
-        population: list[GA_Sample], tournament_size,
-        eng: MutationEngine) -> list[GA_Sample]:
+        population: list[GeneticSample], tournament_size,
+        eng: MutationEngine) -> list[GeneticSample]:
     selected = []
     for _ in range(len(population)):
         tournament = random.sample(population, tournament_size)
         best_individual = max(tournament, key=eng.get_perf)
         selected.append(best_individual)
 
+    # TODO what if all selected are invalid
     find = False
     for sample in selected:
         if sample.perf > 0:
@@ -111,11 +98,11 @@ def mutation(individual, mutation_rate):
 
 
 def build_child(
-    parent: GA_Sample,
+    parent: GeneticSample,
     mutated_action: list[int],
     eng: MutationEngine,
 ):
-    child = GA_Sample(parent.kernel_section, eng)
+    child = GeneticSample(parent.kernel_section, eng)
     child.candidates = deepcopy(parent.candidates)
     child.dims = parent.dims
     child.apply_all([i for i in range(len(mutated_action))], mutated_action)
@@ -123,8 +110,8 @@ def build_child(
 
 
 def crossover(
-    parent1: GA_Sample,
-    parent2: GA_Sample,
+    parent1: GeneticSample,
+    parent2: GeneticSample,
     mutation_rate: float,
     eng: MutationEngine,
 ):
@@ -210,10 +197,8 @@ def main(_):
         'rep': rep,
     }
 
-    # population_size = FLAGS.population_size
-    # generations = FLAGS.generations
-    population_size = 5
-    generations = 2
+    population_size = FLAGS.population_size
+    generations = FLAGS.generations
     mutation_rate = FLAGS.mutation_rate
     tournament_size = FLAGS.tournament_size
 
@@ -244,13 +229,21 @@ def main(_):
     )
 
     # ===== start =====
-    _t1 = time.perf_counter()
+    sample = GeneticSample(eng.kernel_section, eng)
+    init_perf = eng.get_perf(sample)
+    print(f'init perf: {init_perf:.2f}')
+
     population = create_population(population_size, eng)
 
+    _t1 = time.perf_counter()
     for generation in range(generations):
         # Select individuals for reproduction
         selected_population = tournament_selection(
             population, tournament_size, eng)
+
+        # TODO for some reasons, there might be None perf
+        cmp =lambda x: x.perf if x.perf is not None else float("-inf")
+        print(f'generation {generation}: best perf: {max(selected_population, key=cmp):.2f}')
 
         # Create next generation through crossover and mutation
         new_population = []

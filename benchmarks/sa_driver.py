@@ -37,7 +37,7 @@ flags.DEFINE_float("noise_factor", 0.1, "")
 flags.DEFINE_string("policy", "single", "mutation policy; single or all")
 
 
-class SA_Sample(Sample):
+class SimulatedSample(Sample):
 
     def apply(self, index, action):
         lineno = self.candidates[index]
@@ -57,12 +57,9 @@ class SA_Sample(Sample):
         else:
             assert False, f'invalid action: {action}'
 
-    def apply_all(self, indexes, actions):
-        for index, action in zip(indexes, actions):
-            self.apply(index, action)
 
 
-def generate_neighbor(sample: SA_Sample, n_choices, policy):
+def generate_neighbor(sample: SimulatedSample, n_choices, policy):
     mutable = sample.get_mutable()
     if policy == 'single':
         index = random.randint(0, len(mutable) - 1)
@@ -78,7 +75,7 @@ def generate_neighbor(sample: SA_Sample, n_choices, policy):
     else:
         raise RuntimeError(f'invalid policy: {policy}')
 
-    neighbor = SA_Sample(sample.kernel_section, sample.engine)
+    neighbor = SimulatedSample(sample.kernel_section, sample.engine)
     neighbor.candidates = deepcopy(mutable)
     neighbor.dims = sample.dims
     neighbor.apply_all(indexes, actions)
@@ -96,14 +93,14 @@ def acceptance_probability(old_fitness, new_fitness, temperature):
 
 
 def simulated_annealing(
-    initial_solution: SA_Sample,
+    initial_solution: SimulatedSample,
     n_choices,
     max_iterations,
     temperature,
     cooling_rate,
     policy,
     eng: MutationEngine,
-) -> SA_Sample:
+) -> SimulatedSample:
     current_solution = initial_solution
     current_fitness = eng.get_perf(current_solution)
     best_solution = current_solution
@@ -215,7 +212,7 @@ def main(_):
     )
 
     # ===== start =====
-    initial_solution = SA_Sample(eng.kernel_section, eng)
+    initial_solution = SimulatedSample(eng.kernel_section, eng)
 
     _t1 = time.perf_counter()
 

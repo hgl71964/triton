@@ -287,6 +287,21 @@ def main():
 
         return ctrl_code, comment, predicate, opcode, dest, src
 
+    def decode_ctrl_code(ctrl_code: str):
+        ctrl_code = ctrl_code.split(':')
+        # assert len(ctrl_code) == 5, f'invalid ctrl code: {ctrl_code}'
+        # the decode line can't deal with label
+        if len(ctrl_code) != 5:
+            print(f'invalid ctrl code: {ctrl_code}')
+            return None, None, None, None, None
+
+        barr = ctrl_code[0]
+        read = ctrl_code[1]
+        write = ctrl_code[2]
+        yield_flag = ctrl_code[3]
+        stall_count = ctrl_code[4]
+        return barr, read, write, yield_flag, stall_count
+
     # l = ".CUASM_OFFSET_LABEL._attn_fwd_0d1d2d34d5d6de7de8de9c10de11de12de13c14de15de16de17c18de19de20de21c22c23de.EIATTR_COOP_GROUP_INSTR_OFFSETS.#:"
     # l = " .L_x_2:"   # for label line, label is in ctrl_code
     # l = '      [B------:R-:W0:-:S01]         /*1080*/                   LDGDEPBAR ;\n'   # LDGDEPBAR is opcode and dest is ;
@@ -298,6 +313,8 @@ def main():
     for l in ls:
         out = decode(l)
         ctrl_code, comment, predicate, opcode, dest, src = out
+        out = decode_ctrl_code(ctrl_code)
+        barr, read, write, yield_flag, stall_count = out
 
 
 if __name__ == '__main__':
