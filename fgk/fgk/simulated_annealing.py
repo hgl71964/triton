@@ -138,6 +138,11 @@ def run_simulated_annealing(
     warmup=100,
     rep=100,
 ):
+    logger.info(
+        'run simulated annealing with n_choices %d; max_iterations %d; temperature %f; cooling_rate %f; policy %s; noise_factor %f ',
+        n_choices, max_iterations, temperature, cooling_rate, policy,
+        noise_factor)
+
     # ===== seed =====
     random.seed(seed)
     np.random.seed(seed)

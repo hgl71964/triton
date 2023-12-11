@@ -1191,7 +1191,7 @@ class asm_JITFunction(JITFunction):
 
             from fgk.simulated_annealing import run_simulated_annealing
             from fgk.genetic_algorithm import run_genetic_algorithm
-            opt_bin = run_simulated_annealing(
+            opt_bin = run_genetic_algorithm(
                 init_bin,
                 non_constexpr_arg_values,
                 grid_0,
@@ -1200,6 +1200,27 @@ class asm_JITFunction(JITFunction):
                 stream,
                 CompiledKernel.launch_enter_hook,
                 CompiledKernel.launch_exit_hook,
+                # algo
+                self.population_size,
+                self.generations,
+                self.tournament_size,
+                self.mutation_rate,
+                seed=self.seed,
+                test_sample=10,
+                total_flops=self.total_flops,
+                warmup=100,
+                rep=100,
+            )
+            opt_bin = run_simulated_annealing(
+                opt_bin,
+                non_constexpr_arg_values,
+                grid_0,
+                grid_1,
+                grid_2,
+                stream,
+                CompiledKernel.launch_enter_hook,
+                CompiledKernel.launch_exit_hook,
+                # algo
                 1,
                 self.max_iterations,
                 self.temperature,
@@ -1212,18 +1233,6 @@ class asm_JITFunction(JITFunction):
                 warmup=100,
                 rep=100,
             )
-
-            # self.max_iterations = max_iterations
-            # self.temperature = temperature
-            # self.cooling_rate = cooling_rate
-            # self.noise_factor = noise_factor
-            # self.policy = policy
-
-            # self.population_size = population_size
-            # self.generations = generations
-            # self.mutation_rate = mutation_rate
-            # self.tournament_size = tournament_size
-
             # TODO automatically extract args from signature
             # non_constexpr_arg_values can served as bench_args
             self.cache[device][key] = opt_bin

@@ -140,13 +140,14 @@ class CtrlSample(Sample):
         if index == -1:
             raise RuntimeError(f'invalid line: {line}')
 
+        # print(f'action: {action}')
+        # print(f'before action: {line}')
         if action == 1:
-            line[index - 2] = 'Y'
-        elif action == -1:
-            line[index - 2] = '-'
+            line = line[:index - 2] + 'Y' + line[index - 1:]
         elif action == 0:
-            pass
+            line = line[:index - 2] + '-' + line[index - 1:]
         else:
             raise RuntimeError(f'invalid action: {action}')
+        # print(f"after action: {line}")
 
         return line

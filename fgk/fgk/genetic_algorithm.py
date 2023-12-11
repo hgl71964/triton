@@ -3,6 +3,7 @@ import random
 import tempfile
 import time
 from copy import deepcopy
+from typing import Union
 
 import numpy as np
 import torch
@@ -12,7 +13,7 @@ from CuAsm.CubinFile import CubinFile
 
 # mutation
 from fgk.mutator import MutationEngine
-from fgk.sample import Sample
+from fgk.sample import Sample, CtrlSample
 from fgk.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,22 +47,26 @@ class GeneticSample(Sample):
             assert False, f'invalid action: {action}'
 
 
-def create_population(pop_size: int,
-                      init_sample: GeneticSample) -> list[GeneticSample]:
+def create_population(
+    pop_size: int,
+    init_sample: Sample,
+    sample_ctr: Union[CtrlSample, GeneticSample],
+) -> Union[CtrlSample, GeneticSample]:
     population = []
     for _ in range(pop_size):
-        sample = GeneticSample(init_sample.kernel_section, init_sample.engine)
+        sample = sample_ctr(init_sample.kernel_section, init_sample.engine)
         mutable = sample.get_mutable()
         n = len(mutable)
         indexes = [i for i in range(n)]
-        actions = [random.randint(-1, 1) for _ in range(len(mutable))]
+        # actions = [random.randint(-1, 1) for _ in range(n)]
+        actions = [random.choice([0, 1]) for _ in range(n)]
         sample.apply_all(indexes, actions)
         population.append(sample)
     return population
 
 
-def tournament_selection(population: list[GeneticSample], tournament_size,
-                         eng: MutationEngine) -> list[GeneticSample]:
+def tournament_selection(population: list[Sample], tournament_size,
+                         eng: MutationEngine) -> list[Sample]:
     selected = []
     for _ in range(len(population)):
         tournament = random.sample(population, tournament_size)
@@ -84,16 +89,17 @@ def tournament_selection(population: list[GeneticSample], tournament_size,
 def mutation(individual, mutation_rate):
     for i in range(len(individual)):
         if random.random() < mutation_rate:
-            individual[i] = random.randint(-1, 1)  # Assign a new random value
+            individual[i] = 1 - individual[i]  # Flip 0 to 1 or 1 to 0
     return individual
 
 
 def build_child(
     parent: GeneticSample,
     mutated_action: list[int],
+    sample_ctr: Union[CtrlSample, GeneticSample],
     eng: MutationEngine,
 ):
-    child = GeneticSample(parent.kernel_section, eng)
+    child = sample_ctr(parent.kernel_section, eng)
     child.candidates = deepcopy(parent.candidates)
     child.dims = parent.dims
     child.apply_all([i for i in range(len(mutated_action))], mutated_action)
@@ -104,6 +110,7 @@ def crossover(
     parent1: GeneticSample,
     parent2: GeneticSample,
     mutation_rate: float,
+    sample_ctr: Union[CtrlSample, GeneticSample],
     eng: MutationEngine,
 ):
 
@@ -111,8 +118,6 @@ def crossover(
     # child1 = parent1[:crossover_point] + parent2[crossover_point:]
     # child2 = parent2[:crossover_point] + parent1[crossover_point:]
     # return child1, child2
-
-    # TODO mutation should base on a common set of kernel_section
 
     n = parent1.dims
     crossover_point = random.randint(0, n - 1)
@@ -124,11 +129,9 @@ def crossover(
     mutated_action1 = mutation(crossover_action1, mutation_rate)
     mutated_action2 = mutation(crossover_action2, mutation_rate)
 
-    child1 = build_child(parent1, mutated_action1, eng)
-    child2 = build_child(parent1, mutated_action2, eng)
-    child3 = build_child(parent2, mutated_action1, eng)
-    child4 = build_child(parent2, mutated_action2, eng)
-    return child1, child2, child3, child4
+    child1 = build_child(parent1, mutated_action1, sample_ctr, eng)
+    child2 = build_child(parent2, mutated_action2, sample_ctr, eng)
+    return child1, child2
 
 
 def genetic_algorithm(
@@ -137,9 +140,10 @@ def genetic_algorithm(
     generations,
     tournament_size,
     mutation_rate,
+    sample_ctr: Union[CtrlSample, GeneticSample],
     eng: MutationEngine,
 ):
-    population = create_population(population_size, init_sample)
+    population = create_population(population_size, init_sample, sample_ctr)
 
     _t1 = time.perf_counter()
     for generation in range(generations):
@@ -154,9 +158,14 @@ def genetic_algorithm(
         new_population = []
         while len(new_population) < population_size:
             parent1, parent2 = random.sample(selected_population, 2)
-            child1, child2, child3, child4 = crossover(parent1, parent2,
-                                                       mutation_rate, eng)
-            new_population.extend([child1, child2, child3, child4])
+            child1, child2 = crossover(
+                parent1,
+                parent2,
+                mutation_rate,
+                sample_ctr,
+                eng,
+            )
+            new_population.extend([child1, child2])
 
         population = new_population
 
@@ -193,6 +202,9 @@ def run_genetic_algorithm(
     warmup=100,
     rep=100,
 ):
+    logger.info(
+        'run genetic algorithm with population_size %d; generations %d; tournament_size %d; mutation_rate %f ',
+        population_size, generations, tournament_size, mutation_rate)
     # ===== seed =====
     random.seed(seed)
     np.random.seed(seed)
@@ -244,7 +256,8 @@ def run_genetic_algorithm(
     )
 
     # ===== start =====
-    sample = GeneticSample(eng.kernel_section, eng)
+    # sample = GeneticSample(eng.kernel_section, eng)
+    sample = CtrlSample(eng.kernel_section, eng)
     init_perf = eng.get_perf(sample)
     logger.info(f'init perf: {init_perf:.2f}')
 
@@ -254,6 +267,7 @@ def run_genetic_algorithm(
         generations,
         tournament_size,
         mutation_rate,
+        CtrlSample,
         eng,
     )
     # ===== test =====
