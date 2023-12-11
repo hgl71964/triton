@@ -501,9 +501,34 @@ def main(_):
     #    key=['N_CTX'],
     # )
 
+    # workload
+    empty = torch.empty(128, device="cuda")
+    Z, H, N_CTX, D_HEAD = 1, 32, 4096, 64
+    dtype = torch.float16
+    q = (
+        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
+    k = (
+        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
+    v = (
+        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
+                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
+
+    causal = True
+    flops_per_matmul = 2.0 * Z * H * N_CTX * N_CTX * D_HEAD
+    total_flops = 2 * flops_per_matmul
+    if causal:
+        total_flops *= 0.5
+    sm_scale = 0.5
+
 
     # @triton.jit
     @asm_jit(
+        # workload
+        total_flops=total_flops,
+        seed=FLAGS.seed,
+
         # sa
         max_iterations=FLAGS.max_iterations,
         temperature=FLAGS.temperature,
@@ -606,26 +631,10 @@ def main(_):
         tl.store(O_block_ptr, acc.to(Out.type.element_ty))
 
 
-    # workload
-    empty = torch.empty(128, device="cuda")
-    Z, H, N_CTX, D_HEAD = 1, 32, 4096, 64
-    dtype = torch.float16
-    q = (
-        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
-                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-    k = (
-        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
-                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-    v = (
-        torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
-                    device="cuda").normal_(mean=0.0, std=0.5).requires_grad_())
-
-    sm_scale = 0.5
-    causal = True
+    tri_out = attn_forward(q, k, v, causal, sm_scale, _attn_fwd).half()
 
     ## TEST
     print('TEST')
-    tri_out = attn_forward(q, k, v, causal, sm_scale, _attn_fwd).half()
 
     # reference implementation
     M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
@@ -637,7 +646,6 @@ def main(_):
 
     assert torch.allclose(ref_out, tri_out, atol=1e-2, rtol=0)
     print('TEST PASSED')
-
 
 
 

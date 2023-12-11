@@ -179,7 +179,7 @@ class MutationEngine:
         if total_flops is not None:
             tflops = total_flops / ms * 1e-9
             sample.perf = tflops
-            print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
+            # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
             return tflops
 
         raise RuntimeError(f'no total_flops')

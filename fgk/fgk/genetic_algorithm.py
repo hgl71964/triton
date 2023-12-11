@@ -200,7 +200,7 @@ def run_genetic_algorithm(
     torch.backends.cudnn.deterministic = True
 
     # get initial cubin and asm (the initial have to file IO)
-    with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
+    with tempfile.NamedTemporaryFile(mode='wb', delete=True) as temp_file:
 
         cubin = bin.asm['cubin']
         temp_file.write(cubin)

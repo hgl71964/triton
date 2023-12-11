@@ -951,6 +951,10 @@ def jit(
 
 
 def asm_jit(
+    # workload config
+    total_flops,
+    seed=0,
+
     # sa
     max_iterations=1000,
     temperature=1.0,
@@ -980,6 +984,10 @@ def asm_jit(
                 mutation_rate=mutation_rate,
                 tournament_size=tournament_size,
 
+                # workload config
+                seed=seed,
+                total_flops=total_flops,
+
                 # other
                 version=None,
                 do_not_specialize=None,
@@ -1005,6 +1013,10 @@ class asm_JITFunction(JITFunction):
                 mutation_rate,
                 tournament_size,
 
+                # other config
+                seed,
+                total_flops,
+
                   version=None,
                   do_not_specialize=None,
                   debug=None,
@@ -1026,6 +1038,9 @@ class asm_JITFunction(JITFunction):
         self.generations = generations
         self.mutation_rate = mutation_rate
         self.tournament_size = tournament_size
+
+        self.seed = seed
+        self.total_flops = total_flops
 
 
     def run(self, *args, **kwargs):
@@ -1174,9 +1189,29 @@ class asm_JITFunction(JITFunction):
                 device_type=device_type,
             )
 
-            import fgk
             from fgk.simulated_annealing import run_simulated_annealing
             from fgk.genetic_algorithm import run_genetic_algorithm
+            opt_bin = run_simulated_annealing(
+                init_bin,
+                non_constexpr_arg_values,
+                grid_0,
+                grid_1,
+                grid_2,
+                stream,
+                CompiledKernel.launch_enter_hook,
+                CompiledKernel.launch_exit_hook,
+                1,
+                self.max_iterations,
+                self.temperature,
+                self.cooling_rate,
+                self.policy,
+                self.noise_factor,
+                seed=self.seed,
+                test_sample=10,
+                total_flops=self.total_flops,
+                warmup=100,
+                rep=100,
+            )
 
             # self.max_iterations = max_iterations
             # self.temperature = temperature
@@ -1191,7 +1226,6 @@ class asm_JITFunction(JITFunction):
 
             # TODO automatically extract args from signature
             # non_constexpr_arg_values can served as bench_args
-            opt_bin = init_bin
             self.cache[device][key] = opt_bin
 
         bin = self.cache[device][key]
