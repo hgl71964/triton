@@ -959,7 +959,7 @@ def asm_jit(
     max_iterations=1000,
     temperature=1.0,
     cooling_rate=0.003,
-    noise_factor=0.1,
+    noise_factor=0.0,
     policy="single",
     # ga
     population_size=100,
@@ -1173,7 +1173,7 @@ class asm_JITFunction(JITFunction):
             ):
                 return None
 
-            init_bin = compile(
+            bin = compile(
                 self,
                 signature=signature,
                 device=device,
@@ -1191,28 +1191,8 @@ class asm_JITFunction(JITFunction):
 
             from fgk.simulated_annealing import run_simulated_annealing
             from fgk.genetic_algorithm import run_genetic_algorithm
-            opt_bin = run_genetic_algorithm(
-                init_bin,
-                non_constexpr_arg_values,
-                grid_0,
-                grid_1,
-                grid_2,
-                stream,
-                CompiledKernel.launch_enter_hook,
-                CompiledKernel.launch_exit_hook,
-                # algo
-                self.population_size,
-                self.generations,
-                self.tournament_size,
-                self.mutation_rate,
-                seed=self.seed,
-                test_sample=10,
-                total_flops=self.total_flops,
-                warmup=100,
-                rep=100,
-            )
-            opt_bin = run_simulated_annealing(
-                opt_bin,
+            bin = run_simulated_annealing(
+                bin,
                 non_constexpr_arg_values,
                 grid_0,
                 grid_1,
@@ -1233,9 +1213,29 @@ class asm_JITFunction(JITFunction):
                 warmup=100,
                 rep=100,
             )
+            bin = run_genetic_algorithm(
+                bin,
+                non_constexpr_arg_values,
+                grid_0,
+                grid_1,
+                grid_2,
+                stream,
+                CompiledKernel.launch_enter_hook,
+                CompiledKernel.launch_exit_hook,
+                # algo
+                self.population_size,
+                self.generations,
+                self.tournament_size,
+                self.mutation_rate,
+                seed=self.seed,
+                test_sample=10,
+                total_flops=self.total_flops,
+                warmup=100,
+                rep=100,
+            )
             # TODO automatically extract args from signature
             # non_constexpr_arg_values can served as bench_args
-            self.cache[device][key] = opt_bin
+            self.cache[device][key] = bin
 
         bin = self.cache[device][key]
         if not warmup:

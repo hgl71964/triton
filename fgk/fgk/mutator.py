@@ -182,9 +182,7 @@ class MutationEngine:
             # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
             return tflops
 
-        raise RuntimeError(f'no total_flops')
-
-        print(f'ms: {ms:.3f};')
+        # print(f'ms: {ms:.3f};')
         return ms
 
     def assemble(self, sample: Sample):

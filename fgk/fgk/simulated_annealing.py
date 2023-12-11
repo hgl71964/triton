@@ -130,7 +130,7 @@ def run_simulated_annealing(
     temperature=1.0,
     cooling_rate=0.003,
     policy='single',
-    noise_factor=0.1,
+    noise_factor=0.0,
 
     # other config
     seed=0,
@@ -187,7 +187,6 @@ def run_simulated_annealing(
         'warmup': warmup,
         'rep': rep,
     }
-    print('config:', config)
     eng = MutationEngine(
         cf,
         fn,

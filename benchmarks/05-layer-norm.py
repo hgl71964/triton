@@ -33,6 +33,7 @@ import torch
 
 import triton
 import triton.language as tl
+from triton.runtime.jit import asm_jit
 
 try:
     # This is https://github.com/NVIDIA/apex, NOT the apex on PyPi, so it
