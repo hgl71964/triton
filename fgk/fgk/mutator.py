@@ -186,3 +186,20 @@ class MutationEngine:
 
         print(f'ms: {ms:.3f};')
         return ms
+
+    def assemble(self, sample: Sample):
+        mutated_kernel = sample.kernel_section[self.kernel_start_line:]
+        mutated_sass = deepcopy(self.sass)
+        mutated_sass[self.start_line:self.end_line + 1] = mutated_kernel
+
+        # buffer IO
+        cap = CuAsmParser()
+        assemble_ok = True
+        try:
+            cap.parse_from_buffer(mutated_sass)
+            cubin = cap.dump_cubin()
+            self.updater(cubin)  # in place update
+        except Exception as e:
+            print(f'Assemble failed: {e}')
+            assemble_ok = False
+            raise e

@@ -145,7 +145,6 @@ def genetic_algorithm(
 ):
     population = create_population(population_size, init_sample, sample_ctr)
 
-    _t1 = time.perf_counter()
     for generation in range(generations):
         selected_population = tournament_selection(population, tournament_size,
                                                    eng)
@@ -170,11 +169,6 @@ def genetic_algorithm(
         population = new_population
 
     best_individual = max(population, key=eng.get_perf)
-    _t2 = time.perf_counter()
-    hours = (_t2 - _t1) / 3600
-    logger.info(
-        f'Performance: {eng.get_perf(best_individual)}; search time: {hours:.2f}h'
-    )
     return best_individual
 
 
@@ -261,6 +255,7 @@ def run_genetic_algorithm(
     init_perf = eng.get_perf(sample)
     logger.info(f'init perf: {init_perf:.2f}')
 
+    _t1 = time.perf_counter()
     best_sample = genetic_algorithm(
         sample,
         population_size,
@@ -270,5 +265,16 @@ def run_genetic_algorithm(
         CtrlSample,
         eng,
     )
+    _t2 = time.perf_counter()
+    hours = (_t2 - _t1) / 3600
+    logger.info(
+        f'Performance: {best_sample.perf:.2f}; search time: {hours:.2f}h')
+    logger.info(
+        f'improvement: {(best_sample.perf - init_perf) / init_perf:.2f}%')
+
+    eng.assemble(best_sample)
+
+    return bin
+
     # ===== test =====
     # TODO

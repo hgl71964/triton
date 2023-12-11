@@ -76,6 +76,7 @@ def acceptance_probability(old_fitness, new_fitness, temperature,
 
 def simulated_annealing(
     initial_solution: SimulatedSample,
+    init_fitness,
     n_choices,
     max_iterations,
     temperature,
@@ -85,7 +86,7 @@ def simulated_annealing(
     eng: MutationEngine,
 ) -> SimulatedSample:
     current_solution = initial_solution
-    current_fitness = eng.get_perf(current_solution)
+    current_fitness = init_fitness
     best_solution = current_solution
     best_fitness = current_fitness
     cnt = 1
@@ -196,11 +197,12 @@ def run_simulated_annealing(
 
     # ===== start =====
     initial_solution = SimulatedSample(eng.kernel_section, eng)
+    init_perf = eng.get_perf(initial_solution)
 
     _t1 = time.perf_counter()
-
     best_solution, best_fitness = simulated_annealing(
         initial_solution,
+        init_perf,
         n_choices,
         max_iterations,
         temperature,
@@ -213,6 +215,10 @@ def run_simulated_annealing(
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
     logger.info(f'Performance: {best_fitness:.2f}; Search time: {hours:.2f}h')
+    logger.info(f'improvement: {(best_fitness - init_perf) / init_perf:.2f}%')
+
+    eng.assemble(best_solution)
+    return bin
 
     # ===== test =====
     # TODO
