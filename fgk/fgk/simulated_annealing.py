@@ -16,6 +16,7 @@ from fgk.mutator import MutationEngine
 from fgk.sample import Sample
 from fgk.utils.logger import get_logger
 from fgk.utils.gpu_utils import get_gpu_name
+from fgk.utils.record import save_data
 
 logger = get_logger(__name__)
 
@@ -117,6 +118,8 @@ def simulated_annealing(
 def run_simulated_annealing(
     # kernel
     bin,
+    args,
+    sig_key,
     non_constexpr_arg_values,
     grid_0,
     grid_1,
@@ -137,6 +140,7 @@ def run_simulated_annealing(
     seed=0,
     test_sample=10,
     total_flops=None,
+    save_suffix='',
     warmup=100,
     rep=100,
 ):
@@ -182,6 +186,11 @@ def run_simulated_annealing(
         'warmup': warmup,
         'rep': rep,
     }
+
+    def updater(cubin):
+        bin.asm['cubin'] = cubin
+        bin.cu_module = None
+
     eng = MutationEngine(
         cf,
         fn,
@@ -213,18 +222,24 @@ def run_simulated_annealing(
     logger.info(
         f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; Search time: {hours:.2f}h'
     )
-    logger.info(f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
+    logger.info(
+        f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
 
     # ===== test =====
     # TODO
 
     # ===== save =====
-    # TODO also get workload's name, args tensor shape etc.
-    gpu_name = get_gpu_name()
-    # with open(f'data/{gpu_name}.txt', 'w') as f:
-    #     f.write(f'init_perf: {init_perf}\n')
-    #     f.write(f'best perf: {best_fitness}\n')
-    #     f.write(f'improvement: {(best_fitness - init_perf) / init_perf}%\n')
-
     eng.assemble(best_solution)
+    save_data(
+        bin,
+        final_perf,
+        init_perf,
+        hours,
+        args,
+        sig_key,
+        non_constexpr_arg_values,
+        seed,
+        save_suffix,
+        algo='sa',
+    )
     return bin

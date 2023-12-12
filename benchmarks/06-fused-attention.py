@@ -16,7 +16,11 @@ import torch
 
 import triton
 import triton.language as tl
-from triton.runtime.jit import asm_jit
+
+import random
+import numpy as np
+
+from fgk.jit import asm_jit
 
 from absl import app
 from absl import flags
@@ -477,6 +481,10 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
 
 def main(_):
 
+    random.seed(FLAGS.seed)
+    np.random.seed(FLAGS.seed)
+    torch.manual_seed(FLAGS.seed)
+    torch.backends.cudnn.deterministic = True
     # We don't run auto-tuning everytime to keep the tutorial fast. Uncommenting
     # the code below and commenting out the equivalent parameters is convenient for
     # re-tuning.

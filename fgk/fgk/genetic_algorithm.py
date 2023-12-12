@@ -15,6 +15,7 @@ from CuAsm.CubinFile import CubinFile
 from fgk.mutator import MutationEngine
 from fgk.sample import Sample, CtrlSample
 from fgk.utils.logger import get_logger
+from fgk.utils.record import save_data
 
 logger = get_logger(__name__)
 
@@ -175,6 +176,8 @@ def genetic_algorithm(
 def run_genetic_algorithm(
     # kernel
     bin,
+    args,
+    sig_key,
     non_constexpr_arg_values,
     grid_0,
     grid_1,
@@ -193,6 +196,7 @@ def run_genetic_algorithm(
     seed=0,
     test_sample=10,
     total_flops=None,
+    save_suffix='',
     warmup=100,
     rep=100,
 ):
@@ -267,11 +271,24 @@ def run_genetic_algorithm(
     logger.info(
         f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; search time: {hours:.2f}h'
     )
-    logger.info(f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
-
-    eng.assemble(best_sample)
-
-    return bin
+    logger.info(
+        f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
 
     # ===== test =====
     # TODO
+
+    # ===== save =====
+    eng.assemble(best_sample)
+    save_data(
+        bin,
+        final_perf,
+        init_perf,
+        hours,
+        args,
+        sig_key,
+        non_constexpr_arg_values,
+        seed,
+        save_suffix,
+        algo='ga',
+    )
+    return bin
