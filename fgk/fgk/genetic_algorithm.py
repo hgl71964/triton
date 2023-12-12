@@ -274,6 +274,10 @@ def run_genetic_algorithm(
     logger.info(
         f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
 
+    # mutation fails
+    if init_perf > final_perf:
+        best_sample = sample
+
     # ===== test =====
     # TODO
 

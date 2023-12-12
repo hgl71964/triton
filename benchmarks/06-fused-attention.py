@@ -20,7 +20,7 @@ import triton.language as tl
 import random
 import numpy as np
 
-from fgk.jit import asm_jit
+from fgk.jit import jit
 
 from absl import app
 from absl import flags
@@ -533,11 +533,12 @@ def main(_):
 
 
     # @triton.jit
-    @asm_jit(
+    @jit(
         # workload
         total_flops=total_flops,
         seed=FLAGS.seed,
-        save_suffix=N_CTX,
+        # save_suffix=str(N_CTX)+"_"+str(dtype).replace('.', '_'),
+        save_suffix=str(N_CTX),
 
         # sa
         max_iterations=FLAGS.max_iterations,

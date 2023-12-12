@@ -3,7 +3,7 @@ from triton.compiler.compiler import CompiledKernel, compile, get_arch_default_n
 from triton.common.backend import get_backend, get_cuda_version_key
 
 
-def asm_jit(
+def jit(
     # workload config
     total_flops,
     seed=0,
@@ -22,7 +22,7 @@ def asm_jit(
     tournament_size=5,
 ):
 
-    def jit(fn):
+    def wrapper(fn):
 
         def decorator(fn: T):
             assert callable(fn)
@@ -54,7 +54,7 @@ def asm_jit(
 
         return decorator(fn)
 
-    return jit
+    return wrapper
 
 
 class asm_JITFunction(JITFunction):
