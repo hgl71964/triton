@@ -97,7 +97,7 @@ def simulated_annealing(
         new_fitness = eng.get_perf(new_solution)
 
         logger.info(
-            f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}'
+            f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature}'
         )
         if acceptance_probability(current_fitness, new_fitness, temperature,
                                   noise_factor) > random.random():

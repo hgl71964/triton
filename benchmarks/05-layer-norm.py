@@ -33,7 +33,8 @@ import torch
 
 import triton
 import triton.language as tl
-from triton.runtime.jit import asm_jit
+
+from fgk.jit import jit
 
 try:
     # This is https://github.com/NVIDIA/apex, NOT the apex on PyPi, so it
@@ -44,7 +45,8 @@ except ModuleNotFoundError:
     HAS_APEX = False
 
 
-@triton.jit
+# @triton.jit
+@jit
 def _layer_norm_fwd_fused(
     X,  # pointer to the input
     Y,  # pointer to the output
@@ -358,85 +360,86 @@ def test_layer_norm(M, N, dtype, eps=1e-5, device='cuda'):
     assert torch.allclose(dw_tri, dw_ref, atol=1e-2, rtol=0)
 
 
-@triton.testing.perf_report(
-    triton.testing.Benchmark(
-        x_names=['N'],
-        x_vals=[512 * i for i in range(2, 32)],
-        line_arg='provider',
-        line_vals=['triton', 'torch'] + (['apex'] if HAS_APEX else []),
-        line_names=['Triton', 'Torch'] + (['Apex'] if HAS_APEX else []),
-        styles=[('blue', '-'), ('green', '-'), ('orange', '-')],
-        ylabel='GB/s',
-        plot_name='layer-norm-backward',
-        args={
-            'M': 4096,
-            'dtype': torch.float16,
-            'mode': 'backward'
-        },
-    ))
-def bench_layer_norm(M,
-                     N,
-                     dtype,
-                     provider,
-                     mode='backward',
-                     eps=1e-5,
-                     device='cuda'):
-    # create data
-    x_shape = (M, N)
-    w_shape = (x_shape[-1], )
-    weight = torch.rand(w_shape,
-                        dtype=dtype,
-                        device='cuda',
-                        requires_grad=True)
-    bias = torch.rand(w_shape, dtype=dtype, device='cuda', requires_grad=True)
-    x = -2.3 + 0.5 * torch.randn(x_shape, dtype=dtype, device='cuda')
-    dy = .1 * torch.randn_like(x)
-    x.requires_grad_(True)
-    quantiles = [0.5, 0.2, 0.8]
-    # utility functions
-    if provider == 'triton':
+test_layer_norm(4096, 512 * 32, torch.float16)
 
-        def y_fwd():
-            return layer_norm(x, w_shape, weight, bias,
-                              eps)  # noqa: F811, E704
-
-    if provider == 'torch':
-
-        def y_fwd():
-            return torch.nn.functional.layer_norm(x, w_shape, weight, bias,
-                                                  eps)  # noqa: F811, E704
-
-    if provider == 'apex':
-        apex_layer_norm = apex.normalization.FusedLayerNorm(w_shape).to(
-            x.device).to(x.dtype)
-
-        def y_fwd():
-            return apex_layer_norm(x)  # noqa: F811, E704
-
-    # forward pass
-    if mode == 'forward':
-        gbps = lambda ms: 2 * x.numel() * x.element_size() / ms * 1e-6
-        ms, min_ms, max_ms = triton.testing.do_bench(y_fwd,
-                                                     quantiles=quantiles,
-                                                     rep=500)
-    # backward pass
-    if mode == 'backward':
-
-        def gbps(ms):
-            return 3 * x.numel() * x.element_size(
-            ) / ms * 1e-6  # noqa: F811, E704
-
-        y = y_fwd()
-        ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: y.backward(dy, retain_graph=True),
-            quantiles=quantiles,
-            grad_to_none=[x],
-            rep=500)
-    return gbps(ms), gbps(max_ms), gbps(min_ms)
-
-
-test_layer_norm(1151, 8192, torch.float16)
-bench_layer_norm.run(save_path='.', print_data=True)
+# @triton.testing.perf_report(
+#     triton.testing.Benchmark(
+#         x_names=['N'],
+#         x_vals=[512 * i for i in range(2, 32)],
+#         line_arg='provider',
+#         line_vals=['triton', 'torch'] + (['apex'] if HAS_APEX else []),
+#         line_names=['Triton', 'Torch'] + (['Apex'] if HAS_APEX else []),
+#         styles=[('blue', '-'), ('green', '-'), ('orange', '-')],
+#         ylabel='GB/s',
+#         plot_name='layer-norm-backward',
+#         args={
+#             'M': 4096,
+#             'dtype': torch.float16,
+#             'mode': 'backward'
+#         },
+#     ))
+# def bench_layer_norm(M,
+#                      N,
+#                      dtype,
+#                      provider,
+#                      mode='backward',
+#                      eps=1e-5,
+#                      device='cuda'):
+#     # create data
+#     x_shape = (M, N)
+#     w_shape = (x_shape[-1], )
+#     weight = torch.rand(w_shape,
+#                         dtype=dtype,
+#                         device='cuda',
+#                         requires_grad=True)
+#     bias = torch.rand(w_shape, dtype=dtype, device='cuda', requires_grad=True)
+#     x = -2.3 + 0.5 * torch.randn(x_shape, dtype=dtype, device='cuda')
+#     dy = .1 * torch.randn_like(x)
+#     x.requires_grad_(True)
+#     quantiles = [0.5, 0.2, 0.8]
+#     # utility functions
+#     if provider == 'triton':
+#
+#         def y_fwd():
+#             return layer_norm(x, w_shape, weight, bias,
+#                               eps)  # noqa: F811, E704
+#
+#     if provider == 'torch':
+#
+#         def y_fwd():
+#             return torch.nn.functional.layer_norm(x, w_shape, weight, bias,
+#                                                   eps)  # noqa: F811, E704
+#
+#     if provider == 'apex':
+#         apex_layer_norm = apex.normalization.FusedLayerNorm(w_shape).to(
+#             x.device).to(x.dtype)
+#
+#         def y_fwd():
+#             return apex_layer_norm(x)  # noqa: F811, E704
+#
+#     # forward pass
+#     if mode == 'forward':
+#         gbps = lambda ms: 2 * x.numel() * x.element_size() / ms * 1e-6
+#         ms, min_ms, max_ms = triton.testing.do_bench(y_fwd,
+#                                                      quantiles=quantiles,
+#                                                      rep=500)
+#     # backward pass
+#     if mode == 'backward':
+#
+#         def gbps(ms):
+#             return 3 * x.numel() * x.element_size(
+#             ) / ms * 1e-6  # noqa: F811, E704
+#
+#         y = y_fwd()
+#         ms, min_ms, max_ms = triton.testing.do_bench(
+#             lambda: y.backward(dy, retain_graph=True),
+#             quantiles=quantiles,
+#             grad_to_none=[x],
+#             rep=500)
+#     return gbps(ms), gbps(max_ms), gbps(min_ms)
+#
+#
+# bench_layer_norm.run(save_path='.', print_data=True)
 
 # %%
 # References

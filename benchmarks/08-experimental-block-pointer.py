@@ -94,7 +94,8 @@ import torch
 
 import triton
 import triton.language as tl
-from triton.runtime.jit import asm_jit
+
+from fgk.jit import jit
 
 
 # @triton.autotune(
@@ -175,7 +176,7 @@ from triton.runtime.jit import asm_jit
 # key=['M', 'N', 'K'],
 # )
 # @triton.jit
-@asm_jit
+@jit
 def matmul_kernel_with_block_pointers(
         # Pointers to matrices
         a_ptr,
