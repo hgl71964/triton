@@ -253,6 +253,8 @@ def run_genetic_algorithm(
     sample = CtrlSample(eng.kernel_section, eng)
     init_perf = eng.get_perf(sample)
     logger.info(f'init perf: {init_perf:.2f}')
+    if init_perf < 0:
+        raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
     _t1 = time.perf_counter()
     best_sample = genetic_algorithm(

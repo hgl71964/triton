@@ -39,7 +39,7 @@ flags.DEFINE_integer("test_sample", 10, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
 # sa
 flags.DEFINE_integer("max_iterations", 1000, "")
-flags.DEFINE_float("temperature", 1.0, "")
+flags.DEFINE_float("temperature", 0.4, "")
 flags.DEFINE_float("cooling_rate", 0.003, "")
 flags.DEFINE_float("noise_factor", 0.1, "")
 flags.DEFINE_string("policy", "single", "mutation policy; single or all")

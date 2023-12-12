@@ -97,7 +97,7 @@ def simulated_annealing(
         new_fitness = eng.get_perf(new_solution)
 
         logger.info(
-            f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature}'
+            f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature:.2f}'
         )
         if acceptance_probability(current_fitness, new_fitness, temperature,
                                   noise_factor) > random.random():
@@ -200,6 +200,9 @@ def run_simulated_annealing(
     # ===== start =====
     initial_solution = SimulatedSample(eng.kernel_section, eng)
     init_perf = eng.get_perf(initial_solution)
+    logger.info(f'init perf: {init_perf:.2f}')
+    if init_perf < 0:
+        raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
     _t1 = time.perf_counter()
     best_solution, best_fitness = simulated_annealing(
