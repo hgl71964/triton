@@ -204,6 +204,8 @@ def run_genetic_algorithm(
         'run genetic algorithm with population_size %d; generations %d; tournament_size %d; mutation_rate %f ',
         population_size, generations, tournament_size, mutation_rate)
 
+    print(f'bin id {id(bin)}')
+
     # get initial cubin and asm (the initial have to file IO)
     with tempfile.NamedTemporaryFile(mode='wb', delete=True) as temp_file:
 
@@ -217,24 +219,6 @@ def run_genetic_algorithm(
         cf = CubinFile(temp_file.name)
 
     # ===== config =====
-    fn = lambda: bin.c_wrapper(
-        grid_0,
-        grid_1,
-        grid_2,
-        bin.num_warps,
-        bin.num_ctas,
-        bin.clusterDims[0],
-        bin.clusterDims[1],
-        bin.clusterDims[2],
-        bin.shared,
-        stream,
-        bin.cu_function,
-        launch_enter_hook,
-        launch_exit_hook,
-        bin,
-        *bin.assemble_tensormap_to_arg(non_constexpr_arg_values),
-    )
-
     config = {
         'atol': 1e-2,
         "total_flops": total_flops,
@@ -242,10 +226,16 @@ def run_genetic_algorithm(
         'rep': rep,
     }
     eng = MutationEngine(
+        bin,
         cf,
-        fn,
-        bin.hack_cubin,
         config,
+        grid_0,
+        grid_1,
+        grid_2,
+        stream,
+        launch_enter_hook,
+        launch_exit_hook,
+        non_constexpr_arg_values,
     )
 
     # ===== start =====

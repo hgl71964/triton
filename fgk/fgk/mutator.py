@@ -4,6 +4,7 @@ from functools import lru_cache
 from copy import deepcopy
 
 import triton
+from triton.compiler.compiler import CompiledKernel
 
 from CuAsm.CuAsmParser import CuAsmParser
 
@@ -14,11 +15,19 @@ class MutationEngine:
 
     def __init__(
         self,
+        bin: CompiledKernel,
         cf,
-        kernel_func: callable,
-        updater: callable,
         config: dict,
+        grid_0,
+        grid_1,
+        grid_2,
+        stream,
+        launch_enter_hook,
+        launch_exit_hook,
+        non_constexpr_arg_values,
     ):
+        self.bin = bin
+
         # get sass
         text_buffer_1, text_buffer_2 = cf.dump_sass()
         sass = text_buffer_1.getvalue().split('\n')
@@ -62,11 +71,16 @@ class MutationEngine:
         self.kernel_section = kernel_section
 
         self.cf = cf
-        self.kernel_func = kernel_func
 
         self.config = config
 
-        self.updater = updater
+        self.grid_0 = grid_0
+        self.grid_1 = grid_1
+        self.grid_2 = grid_2
+        self.stream = stream
+        self.launch_enter_hook = launch_enter_hook
+        self.launch_exit_hook = launch_exit_hook
+        self.non_constexpr_arg_values = non_constexpr_arg_values
 
     def decode(self, line: str):
         line = line.strip('\n')
@@ -138,6 +152,10 @@ class MutationEngine:
         stall_count = ctrl_code[4]
         return barr, read, write, yield_flag, stall_count
 
+    def update_cubin(self, cubin):
+        self.bin.asm['cubin'] = cubin
+        self.bin.cu_module = None  # force to re-load
+
     @lru_cache(maxsize=1000)
     def get_perf(self, sample: Sample):
         mutated_kernel = sample.kernel_section[self.kernel_start_line:]
@@ -150,20 +168,35 @@ class MutationEngine:
         try:
             cap.parse_from_buffer(mutated_sass)
             cubin = cap.dump_cubin()
-            self.updater(cubin)
+            self.update_cubin(cubin)
         except Exception as e:
             print(f'Assemble failed: {e}')
             assemble_ok = False
 
         ## XXX NOT test here to allow possible intermediate incorrect results
         # BENCH
+        fn = lambda: self.bin.c_wrapper(
+            self.grid_0,
+            self.grid_1,
+            self.grid_2,
+            self.bin.num_warps,
+            self.bin.num_ctas,
+            self.bin.clusterDims[0],
+            self.bin.clusterDims[1],
+            self.bin.clusterDims[2],
+            self.bin.shared,
+            self.stream,
+            self.bin.cu_function,
+            self.launch_enter_hook,
+            self.launch_exit_hook,
+            self.bin,
+            *self.bin.assemble_tensormap_to_arg(self.non_constexpr_arg_values),
+        )
         if assemble_ok:
             try:
                 warmup = self.config['warmup']
                 rep = self.config['rep']
-                ms = triton.testing.do_bench(self.kernel_func,
-                                             warmup=warmup,
-                                             rep=rep)
+                ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
             except RuntimeError as run_err:
                 # likely a cuda error
                 print(f'CUDA? Runtime Err: {run_err}')
@@ -196,7 +229,7 @@ class MutationEngine:
         try:
             cap.parse_from_buffer(mutated_sass)
             cubin = cap.dump_cubin()
-            self.updater(cubin)  # in place update
+            self.update_cubin(cubin)  # in place update
         except Exception as e:
             print(f'Assemble failed: {e}')
             assemble_ok = False

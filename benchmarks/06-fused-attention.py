@@ -49,7 +49,7 @@ flags.DEFINE_integer("generations", 50, "")
 flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
 #workload
-flags.DEFINE_integer("N_CTX", 4096, "")
+flags.DEFINE_integer("ctx", 4096, "")
 
 @triton.jit
 def _attn_fwd_inner(acc, l_i, m_i, q,  #
@@ -432,7 +432,7 @@ class _attention(torch.autograd.Function):
             BLOCK_M2=BLOCK_M2, BLOCK_N2=BLOCK_N2,  #
             BLK_SLICE_FACTOR=BLK_SLICE_FACTOR,  #
             BLOCK_DMODEL=ctx.BLOCK_DMODEL,  #
-            num_warps=NUM_WARPS,  #
+            ctx=NUM_WARPS,  #
             num_stages=NUM_STAGES  #
         )
 
@@ -512,7 +512,7 @@ def main(_):
     # )
 
     # workload
-    Z, H, N_CTX, D_HEAD = 4, 48, FLAGS.N_CTX, 64
+    Z, H, N_CTX, D_HEAD = 4, 48, FLAGS.ctx, 64
     dtype = torch.float16
     q = (
         torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
