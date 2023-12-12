@@ -199,11 +199,6 @@ def run_genetic_algorithm(
     logger.info(
         'run genetic algorithm with population_size %d; generations %d; tournament_size %d; mutation_rate %f ',
         population_size, generations, tournament_size, mutation_rate)
-    # ===== seed =====
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
 
     # get initial cubin and asm (the initial have to file IO)
     with tempfile.NamedTemporaryFile(mode='wb', delete=True) as temp_file:
@@ -267,10 +262,12 @@ def run_genetic_algorithm(
     )
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
+
+    final_perf = eng.get_perf(best_sample)
     logger.info(
-        f'Performance: {best_sample.perf:.2f}; search time: {hours:.2f}h')
-    logger.info(
-        f'improvement: {(best_sample.perf - init_perf) / init_perf:.2f}%')
+        f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; search time: {hours:.2f}h'
+    )
+    logger.info(f'improvement: {(final_perf - init_perf) / init_perf:.2f}%')
 
     eng.assemble(best_sample)
 

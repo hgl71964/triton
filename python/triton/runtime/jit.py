@@ -1189,8 +1189,17 @@ class asm_JITFunction(JITFunction):
                 device_type=device_type,
             )
 
+            # ===== seed =====
+            import random
+            import numpy as np
+            import torch
             from fgk.simulated_annealing import run_simulated_annealing
             from fgk.genetic_algorithm import run_genetic_algorithm
+            random.seed(self.seed)
+            np.random.seed(self.seed)
+            torch.manual_seed(self.seed)
+            torch.backends.cudnn.deterministic = True
+
             bin = run_simulated_annealing(
                 bin,
                 non_constexpr_arg_values,

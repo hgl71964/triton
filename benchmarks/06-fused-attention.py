@@ -503,7 +503,7 @@ def main(_):
 
     # workload
     empty = torch.empty(128, device="cuda")
-    Z, H, N_CTX, D_HEAD = 1, 32, 4096, 64
+    Z, H, N_CTX, D_HEAD = 4, 48, 4096, 64
     dtype = torch.float16
     q = (
         torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,

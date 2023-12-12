@@ -15,6 +15,7 @@ from CuAsm.CubinFile import CubinFile
 from fgk.mutator import MutationEngine
 from fgk.sample import Sample
 from fgk.utils.logger import get_logger
+from fgk.utils.gpu_utils import get_gpu_name
 
 logger = get_logger(__name__)
 
@@ -144,12 +145,6 @@ def run_simulated_annealing(
         n_choices, max_iterations, temperature, cooling_rate, policy,
         noise_factor)
 
-    # ===== seed =====
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-
     # get initial cubin and asm (the initial have to file IO)
     with tempfile.NamedTemporaryFile(mode='wb', delete=True) as temp_file:
 
@@ -213,11 +208,23 @@ def run_simulated_annealing(
 
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
-    logger.info(f'Performance: {best_fitness:.2f}; Search time: {hours:.2f}h')
-    logger.info(f'improvement: {(best_fitness - init_perf) / init_perf:.2f}%')
 
-    eng.assemble(best_solution)
-    return bin
+    final_perf = eng.get_perf(best_solution)
+    logger.info(
+        f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; Search time: {hours:.2f}h'
+    )
+    logger.info(f'improvement: {(final_perf - init_perf) / init_perf:.2f}%')
 
     # ===== test =====
     # TODO
+
+    # ===== save =====
+    # TODO also get workload's name, args tensor shape etc.
+    gpu_name = get_gpu_name()
+    # with open(f'data/{gpu_name}.txt', 'w') as f:
+    #     f.write(f'init_perf: {init_perf}\n')
+    #     f.write(f'best perf: {best_fitness}\n')
+    #     f.write(f'improvement: {(best_fitness - init_perf) / init_perf}%\n')
+
+    eng.assemble(best_solution)
+    return bin
