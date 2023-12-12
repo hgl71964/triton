@@ -267,7 +267,7 @@ def run_genetic_algorithm(
     logger.info(
         f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; search time: {hours:.2f}h'
     )
-    logger.info(f'improvement: {(final_perf - init_perf) / init_perf:.2f}%')
+    logger.info(f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
 
     eng.assemble(best_sample)
 
