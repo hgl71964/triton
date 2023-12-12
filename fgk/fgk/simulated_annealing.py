@@ -15,7 +15,6 @@ from CuAsm.CubinFile import CubinFile
 from fgk.mutator import MutationEngine
 from fgk.sample import Sample
 from fgk.utils.logger import get_logger
-from fgk.utils.gpu_utils import get_gpu_name
 from fgk.utils.record import save_data
 
 logger = get_logger(__name__)

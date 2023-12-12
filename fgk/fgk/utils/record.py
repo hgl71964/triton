@@ -38,6 +38,8 @@ def save_data(
 
     kernel_name = bin.metadata['name'][:20]
     file_name = f'{kernel_name}_{algo}_{seed}'
+    if not isinstance(save_suffix, str):
+        save_suffix = str(save_suffix)
     file_name += save_suffix
     file_name += '.pkl'
 

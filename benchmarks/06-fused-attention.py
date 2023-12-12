@@ -48,6 +48,8 @@ flags.DEFINE_integer("population_size", 100, "")
 flags.DEFINE_integer("generations", 50, "")
 flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
+#workload
+flags.DEFINE_integer("N_CTX", 4096, "")
 
 @triton.jit
 def _attn_fwd_inner(acc, l_i, m_i, q,  #
@@ -510,8 +512,7 @@ def main(_):
     # )
 
     # workload
-    empty = torch.empty(128, device="cuda")
-    Z, H, N_CTX, D_HEAD = 4, 48, 4096, 64
+    Z, H, N_CTX, D_HEAD = 4, 48, FLAGS.N_CTX, 64
     dtype = torch.float16
     q = (
         torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
@@ -536,6 +537,7 @@ def main(_):
         # workload
         total_flops=total_flops,
         seed=FLAGS.seed,
+        save_suffix=N_CTX,
 
         # sa
         max_iterations=FLAGS.max_iterations,
