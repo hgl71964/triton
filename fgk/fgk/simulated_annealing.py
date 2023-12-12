@@ -191,7 +191,7 @@ def run_simulated_annealing(
         raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
     _t1 = time.perf_counter()
-    best_solution, best_fitness = simulated_annealing(
+    best_solution, _ = simulated_annealing(
         initial_solution,
         init_perf,
         n_choices,
@@ -206,7 +206,7 @@ def run_simulated_annealing(
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
 
-    final_perf = eng.get_perf(best_solution)
+    final_perf = eng.assemble(best_solution)
     logger.info(
         f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; Search time: {hours:.2f}h'
     )
@@ -217,7 +217,6 @@ def run_simulated_annealing(
     # TODO
 
     # ===== save =====
-    eng.assemble(best_solution)
     save_data(
         bin,
         final_perf,

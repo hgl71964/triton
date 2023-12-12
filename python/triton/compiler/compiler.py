@@ -641,11 +641,6 @@ class CompiledKernel:
         self.cu_module = None
         self.cu_function = None
     
-    def hack_cubin(self, cubin):
-        print('[CompiledKernel] reset cubin')
-        self.asm["cubin"] = cubin
-        self.cu_module = None  # force to reload 
-
     def _init_handles(self):
         if self.cu_module is not None:
             return

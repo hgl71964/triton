@@ -259,22 +259,23 @@ def run_genetic_algorithm(
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
 
-    final_perf = eng.get_perf(best_sample)
+    final_perf = eng.assemble(best_sample)
+
+    # mutation fails
+    if init_perf > final_perf:
+        best_sample = sample
+        final_perf = eng.assemble(best_sample)
+
     logger.info(
         f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; search time: {hours:.2f}h'
     )
     logger.info(
         f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
 
-    # mutation fails
-    if init_perf > final_perf:
-        best_sample = sample
-
     # ===== test =====
     # TODO
 
     # ===== save =====
-    eng.assemble(best_sample)
     save_data(
         bin,
         final_perf,

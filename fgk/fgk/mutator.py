@@ -216,7 +216,7 @@ class MutationEngine:
             return tflops
 
         # print(f'ms: {ms:.3f};')
-        return ms
+        return -ms
 
     def assemble(self, sample: Sample):
         mutated_kernel = sample.kernel_section[self.kernel_start_line:]
@@ -234,3 +234,46 @@ class MutationEngine:
             print(f'Assemble failed: {e}')
             assemble_ok = False
             raise e
+
+        # final BENCH
+        fn = lambda: self.bin.c_wrapper(
+            self.grid_0,
+            self.grid_1,
+            self.grid_2,
+            self.bin.num_warps,
+            self.bin.num_ctas,
+            self.bin.clusterDims[0],
+            self.bin.clusterDims[1],
+            self.bin.clusterDims[2],
+            self.bin.shared,
+            self.stream,
+            self.bin.cu_function,
+            self.launch_enter_hook,
+            self.launch_exit_hook,
+            self.bin,
+            *self.bin.assemble_tensormap_to_arg(self.non_constexpr_arg_values),
+        )
+        if assemble_ok:
+            try:
+                warmup = self.config['warmup']
+                rep = self.config['rep']
+                ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            except RuntimeError as run_err:
+                # likely a cuda error
+                print(f'CUDA? Runtime Err: {run_err}')
+                ms = -1
+            except Exception as e:
+                print(f'Other error: {e}')
+                raise e
+        else:
+            ms = -1
+
+        total_flops = self.config.get('total_flops', None)
+
+        if total_flops is not None:
+            tflops = total_flops / ms * 1e-9
+            sample.perf = tflops
+            # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
+            return tflops
+
+        return -ms
