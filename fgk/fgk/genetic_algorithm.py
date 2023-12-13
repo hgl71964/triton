@@ -204,7 +204,7 @@ def run_genetic_algorithm(
         'run genetic algorithm with population_size %d; generations %d; tournament_size %d; mutation_rate %f ',
         population_size, generations, tournament_size, mutation_rate)
 
-    print(f'bin id {id(bin)}')
+    # print(f'bin id {id(bin)}')
 
     # get initial cubin and asm (the initial have to file IO)
     with tempfile.NamedTemporaryFile(mode='wb', delete=True) as temp_file:
@@ -260,6 +260,8 @@ def run_genetic_algorithm(
     hours = (_t2 - _t1) / 3600
 
     final_perf = eng.assemble(best_sample)
+    if final_perf < 0:
+        raise RuntimeError(f'final perf {final_perf} < 0; not valid cubin')
 
     # mutation fails
     if init_perf > final_perf:

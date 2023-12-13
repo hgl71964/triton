@@ -269,7 +269,6 @@ class asm_JITFunction(JITFunction):
             # ===== seed =====
             from fgk.simulated_annealing import run_simulated_annealing
             from fgk.genetic_algorithm import run_genetic_algorithm
-
             bin = run_simulated_annealing(
                 bin,
                 args,

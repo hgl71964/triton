@@ -1,3 +1,7 @@
+import sys
+import subprocess
+from multiprocessing import Process, Queue
+
 import tempfile
 from functools import lru_cache
 
@@ -156,11 +160,15 @@ class MutationEngine:
         self.bin.asm['cubin'] = cubin
         self.bin.cu_module = None  # force to re-load
 
-    @lru_cache(maxsize=1000)
-    def get_perf(self, sample: Sample):
-        mutated_kernel = sample.kernel_section[self.kernel_start_line:]
-        mutated_sass = deepcopy(self.sass)
-        mutated_sass[self.start_line:self.end_line + 1] = mutated_kernel
+    # @lru_cache(maxsize=1000)
+    def get_perf(self, sample: Sample, init=False):
+        if not init:
+            mutated_kernel = sample.kernel_section[self.kernel_start_line:]
+            mutated_sass = deepcopy(self.sass)
+            mutated_sass[self.start_line:self.end_line + 1] = mutated_kernel
+
+        else:
+            mutated_sass = self.sass
 
         # buffer IO
         cap = CuAsmParser()
@@ -216,6 +224,7 @@ class MutationEngine:
             return tflops
 
         # print(f'ms: {ms:.3f};')
+        sample.perf = -ms
         return -ms
 
     def assemble(self, sample: Sample):

@@ -4,12 +4,17 @@ import random
 import tempfile
 import time
 from copy import deepcopy
+from multiprocessing import Process, Queue
 
 import numpy as np
 import torch
 
 # asm (add CuAsm to PYTHONPATH!)
 from CuAsm.CubinFile import CubinFile
+
+from cuda.cuda import cuDevicePrimaryCtxReset
+from cuda.cudart import cudaDeviceReset
+from cuda.cuda import CUdevice
 
 # mutation
 from fgk.mutator import MutationEngine
@@ -111,6 +116,16 @@ def simulated_annealing(
             best_fitness = current_fitness
             best_solution = current_solution
 
+        # debug
+        if new_fitness < 0:
+            dev = CUdevice()
+            cuDevicePrimaryCtxReset(dev)
+            cudaDeviceReset()
+            # print(id(new_solution))
+            # print(id(current_solution))
+            # print(id(best_solution))
+            # break
+
     return best_solution, best_fitness
 
 
@@ -148,7 +163,7 @@ def run_simulated_annealing(
         n_choices, max_iterations, temperature, cooling_rate, policy,
         noise_factor)
 
-    print(f'bin id {id(bin)}')
+    # print(f'bin id {id(bin)}')
 
     # get initial cubin and asm (the initial have to file IO)
     with tempfile.NamedTemporaryFile(mode='wb', delete=True) as temp_file:
@@ -207,6 +222,7 @@ def run_simulated_annealing(
     hours = (_t2 - _t1) / 3600
 
     final_perf = eng.assemble(best_solution)
+
     logger.info(
         f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; Search time: {hours:.2f}h'
     )
@@ -229,5 +245,5 @@ def run_simulated_annealing(
         save_suffix,
         algo='sa',
     )
-    print(f'final bin id {id(bin)}')
+    # print(f'final bin id {id(bin)}')
     return bin
