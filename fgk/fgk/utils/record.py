@@ -40,6 +40,7 @@ def save_data(
     file_name = f'{kernel_name}_{algo}_{seed}'
     if not isinstance(save_suffix, str):
         save_suffix = str(save_suffix)
+    file_name += '_'
     file_name += save_suffix
     file_name += '.pkl'
 

@@ -245,6 +245,7 @@ def run_genetic_algorithm(
     logger.info(f'init perf: {init_perf:.2f}')
     if init_perf < 0:
         logger.critical(f'init perf {init_perf} < 0; not valid cubin')
+        # TODO handle this error, exit gracefully?
         return bin
 
     _t1 = time.perf_counter()
