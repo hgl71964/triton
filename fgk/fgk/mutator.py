@@ -160,7 +160,7 @@ class MutationEngine:
         self.bin.asm['cubin'] = cubin
         self.bin.cu_module = None  # force to re-load
 
-    # @lru_cache(maxsize=1000)
+    @lru_cache(maxsize=1000)
     def get_perf(self, sample: Sample, init=False):
         if not init:
             mutated_kernel = sample.kernel_section[self.kernel_start_line:]

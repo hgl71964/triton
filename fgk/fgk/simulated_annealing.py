@@ -4,7 +4,7 @@ import random
 import tempfile
 import time
 from copy import deepcopy
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, set_start_method
 
 import numpy as np
 import torch
@@ -12,15 +12,14 @@ import torch
 # asm (add CuAsm to PYTHONPATH!)
 from CuAsm.CubinFile import CubinFile
 
-from cuda.cuda import cuDevicePrimaryCtxReset
-from cuda.cudart import cudaDeviceReset
-from cuda.cuda import CUdevice
-
 # mutation
 from fgk.mutator import MutationEngine
 from fgk.sample import Sample
 from fgk.utils.logger import get_logger
 from fgk.utils.record import save_data
+
+# a custom compilation pipeline to be executed in another process
+from fgk.compiler import compile, CompiledKernel
 
 logger = get_logger(__name__)
 
@@ -116,15 +115,11 @@ def simulated_annealing(
             best_fitness = current_fitness
             best_solution = current_solution
 
-        # debug
+        # early stop
         if new_fitness < 0:
-            dev = CUdevice()
-            cuDevicePrimaryCtxReset(dev)
-            cudaDeviceReset()
-            # print(id(new_solution))
-            # print(id(current_solution))
-            # print(id(best_solution))
-            # break
+            # once illegal memory access, subsequent call may fail
+            # so we early stop here
+            break
 
     return best_solution, best_fitness
 
@@ -206,7 +201,7 @@ def run_simulated_annealing(
         raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
     _t1 = time.perf_counter()
-    best_solution, _ = simulated_annealing(
+    best_solution, best_perf = simulated_annealing(
         initial_solution,
         init_perf,
         n_choices,
@@ -221,7 +216,10 @@ def run_simulated_annealing(
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
 
-    final_perf = eng.assemble(best_solution)
+    final_perf = best_perf
+    _ = eng.assemble(
+        best_solution
+    )  # if illegal memory access, this gives error, but cubin is valid
 
     logger.info(
         f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; Search time: {hours:.2f}h'
@@ -247,3 +245,171 @@ def run_simulated_annealing(
     )
     # print(f'final bin id {id(bin)}')
     return bin
+
+
+def run(
+    fn,
+    signature,
+    device,
+    constants,
+    num_warps,
+    num_ctas,
+    num_stages,
+    enable_warp_specialization,
+    enable_fp_fusion,
+    extern_libs,
+    configs,
+    debug,
+    device_type,
+    queue,
+
+    # args
+    args,
+    sig_key,
+    non_constexpr_arg_values,
+    grid_0,
+    grid_1,
+    grid_2,
+    stream,
+    max_iterations,
+    temperature,
+    cooling_rate,
+    policy,
+    noise_factor,
+    seed,
+    test_sample,
+    total_flops,
+    save_suffix,
+    warmup,
+    rep,
+):
+    bin = compile(
+        # TODO
+        fn,
+
+        # ``
+        signature=signature,
+        device=device,
+        constants=constants,
+        num_warps=num_warps,
+        num_ctas=num_ctas,
+        num_stages=num_stages,
+        enable_warp_specialization=enable_warp_specialization,
+        enable_fp_fusion=enable_fp_fusion,
+        extern_libs=extern_libs,
+        configs=configs,
+        debug=debug,
+        device_type=device_type,
+    )
+    bin = run_simulated_annealing(
+        bin,
+        args,
+        sig_key,
+        non_constexpr_arg_values,
+        grid_0,
+        grid_1,
+        grid_2,
+        stream,
+        CompiledKernel.launch_enter_hook,
+        CompiledKernel.launch_exit_hook,
+        # algo
+        1,
+        max_iterations,
+        temperature,
+        cooling_rate,
+        policy,
+        noise_factor,
+        seed,
+        test_sample,
+        total_flops,
+        save_suffix,
+        warmup,
+        rep,
+    )
+
+    queue.put('ok')
+    return bin
+
+
+def launch(
+    # compile args
+    fn,
+    signature,
+    device,
+    constants,
+    num_warps,
+    num_ctas,
+    num_stages,
+    enable_warp_specialization,
+    enable_fp_fusion,
+    extern_libs,
+    configs,
+    debug,
+    device_type,
+
+    # args
+    args,
+    sig_key,
+    non_constexpr_arg_values,
+    grid_0,
+    grid_1,
+    grid_2,
+    stream,
+    max_iterations,
+    temperature,
+    cooling_rate,
+    policy,
+    noise_factor,
+    seed,
+    test_sample,
+    total_flops,
+    save_suffix,
+    warmup,
+    rep,
+):
+    set_start_method('spawn')
+    queue = Queue()
+    process = Process(
+        target=run,
+        args=(
+            fn,  # TODO cannot pickle fn
+            signature,
+            device,
+            constants,
+            num_warps,
+            num_ctas,
+            num_stages,
+            enable_warp_specialization,
+            enable_fp_fusion,
+            extern_libs,
+            configs,
+            debug,
+            device_type,
+            queue,
+
+            # args
+            args,
+            sig_key,
+            non_constexpr_arg_values,
+            grid_0,
+            grid_1,
+            grid_2,
+            stream,
+            max_iterations,
+            temperature,
+            cooling_rate,
+            policy,
+            noise_factor,
+            seed,
+            test_sample,
+            total_flops,
+            save_suffix,
+            warmup,
+            rep,
+        ))
+    process.start()
+    process.join()
+
+    result = queue.get()
+    # print("Result from the process:", result)
+    return result

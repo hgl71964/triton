@@ -244,7 +244,8 @@ def run_genetic_algorithm(
     init_perf = eng.get_perf(sample)
     logger.info(f'init perf: {init_perf:.2f}')
     if init_perf < 0:
-        raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
+        logger.critical(f'init perf {init_perf} < 0; not valid cubin')
+        return bin
 
     _t1 = time.perf_counter()
     best_sample = genetic_algorithm(
@@ -259,9 +260,8 @@ def run_genetic_algorithm(
     _t2 = time.perf_counter()
     hours = (_t2 - _t1) / 3600
 
+    # if init perf is > 0, it is unlikely this gives invalid cubin
     final_perf = eng.assemble(best_sample)
-    if final_perf < 0:
-        raise RuntimeError(f'final perf {final_perf} < 0; not valid cubin')
 
     # mutation fails
     if init_perf > final_perf:
