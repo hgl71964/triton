@@ -150,6 +150,7 @@ def run_simulated_annealing(
     test_sample=10,
     total_flops=None,
     save_suffix='',
+    save_dir=None,
     warmup=100,
     rep=100,
 ):
@@ -241,6 +242,7 @@ def run_simulated_annealing(
         non_constexpr_arg_values,
         seed,
         save_suffix,
+        save_dir,
         algo='sa',
     )
     # print(f'final bin id {id(bin)}')

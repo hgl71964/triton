@@ -15,12 +15,13 @@ def save_data(
     non_constexpr_arg_values,
     seed,
     save_suffix,
+    save_dir,
     algo,
 ):
     gpu_name = get_gpu_name()
     gpu_name = gpu_name.replace(' ', '_')
 
-    data = bin.metadata
+    data = {}
     data['cubin'] = bin.asm['cubin']  # binary
     data['final_perf'] = final_perf
     data['init_perf'] = init_perf
@@ -33,6 +34,10 @@ def save_data(
                 non_constexpr_arg_values[i].shape)
 
     dir_path = f'data/{gpu_name}'
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    if save_dir is not None:
+        dir_path = f'data/{gpu_name}/save_dir'
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 

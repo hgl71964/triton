@@ -197,6 +197,7 @@ def run_genetic_algorithm(
     test_sample=10,
     total_flops=None,
     save_suffix='',
+    save_dir=None,
     warmup=100,
     rep=100,
 ):
@@ -289,6 +290,7 @@ def run_genetic_algorithm(
         non_constexpr_arg_values,
         seed,
         save_suffix,
+        save_dir,
         algo='ga',
     )
     return bin

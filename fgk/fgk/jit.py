@@ -11,6 +11,7 @@ def jit(
     total_flops,
     seed=0,
     save_suffix="",
+    save_dir=None,
 
     # sa
     max_iterations=1000,
@@ -47,6 +48,7 @@ def jit(
                 seed=seed,
                 total_flops=total_flops,
                 save_suffix=save_suffix,
+                save_dir=save_dir,
 
                 # other
                 version=None,
@@ -82,6 +84,7 @@ class asm_JITFunction(JITFunction):
             seed,
             total_flops,
             save_suffix,
+            save_dir,
             version=None,
             do_not_specialize=None,
             debug=None,
@@ -107,6 +110,7 @@ class asm_JITFunction(JITFunction):
         self.seed = seed
         self.total_flops = total_flops
         self.save_suffix = save_suffix
+        self.save_dir = save_dir
 
     # def run(self, *args, **kwargs):
 
@@ -494,6 +498,7 @@ class asm_JITFunction(JITFunction):
                 test_sample=10,
                 total_flops=self.total_flops,
                 save_suffix=self.save_suffix,
+                save_dir=self.save_dir,
                 warmup=100,
                 rep=100,
             )
@@ -517,6 +522,7 @@ class asm_JITFunction(JITFunction):
                 test_sample=10,
                 total_flops=self.total_flops,
                 save_suffix=self.save_suffix,
+                save_dir=self.save_dir,
                 warmup=100,
                 rep=100,
             )

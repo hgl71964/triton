@@ -539,6 +539,7 @@ def main(_):
         seed=FLAGS.seed,
         # save_suffix=str(N_CTX)+"_"+str(dtype).replace('.', '_'),
         save_suffix=str(N_CTX),
+        save_dir='flash_attn',
 
         # sa
         max_iterations=FLAGS.max_iterations,
