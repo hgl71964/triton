@@ -37,7 +37,7 @@ def save_data(
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     if save_dir is not None:
-        dir_path = f'data/{gpu_name}/save_dir'
+        dir_path = f'data/{gpu_name}/{save_dir}'
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
