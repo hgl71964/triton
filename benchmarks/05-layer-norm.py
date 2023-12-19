@@ -55,8 +55,6 @@ FLAGS = flags.FLAGS
 
 # kernel
 flags.DEFINE_string("default_out_path", "data", "output dir")
-flags.DEFINE_integer("dump", 0, "whether to dump")
-flags.DEFINE_integer("hack", 0, "whether to hack")
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("test_sample", 10, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")

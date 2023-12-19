@@ -502,30 +502,30 @@ class asm_JITFunction(JITFunction):
                 warmup=100,
                 rep=100,
             )
-            bin = run_genetic_algorithm(
-                bin,
-                args,
-                sig_key,
-                non_constexpr_arg_values,
-                grid_0,
-                grid_1,
-                grid_2,
-                stream,
-                CompiledKernel.launch_enter_hook,
-                CompiledKernel.launch_exit_hook,
-                # algo
-                self.population_size,
-                self.generations,
-                self.tournament_size,
-                self.mutation_rate,
-                seed=self.seed,
-                test_sample=10,
-                total_flops=self.total_flops,
-                save_suffix=self.save_suffix,
-                save_dir=self.save_dir,
-                warmup=100,
-                rep=100,
-            )
+            # bin = run_genetic_algorithm(
+            #     bin,
+            #     args,
+            #     sig_key,
+            #     non_constexpr_arg_values,
+            #     grid_0,
+            #     grid_1,
+            #     grid_2,
+            #     stream,
+            #     CompiledKernel.launch_enter_hook,
+            #     CompiledKernel.launch_exit_hook,
+            #     # algo
+            #     self.population_size,
+            #     self.generations,
+            #     self.tournament_size,
+            #     self.mutation_rate,
+            #     seed=self.seed,
+            #     test_sample=10,
+            #     total_flops=self.total_flops,
+            #     save_suffix=self.save_suffix,
+            #     save_dir=self.save_dir,
+            #     warmup=100,
+            #     rep=100,
+            # )
             self.cache[device][key] = bin
 
         bin = self.cache[device][key]

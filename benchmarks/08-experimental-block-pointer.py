@@ -24,8 +24,6 @@ FLAGS = flags.FLAGS
 
 # kernel
 flags.DEFINE_string("default_out_path", "data", "output dir")
-flags.DEFINE_integer("dump", 0, "whether to dump")
-flags.DEFINE_integer("hack", 0, "whether to hack")
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("test_sample", 10, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
@@ -54,7 +52,7 @@ def main(_):
     a = torch.randn((M, 2*M), device='cuda', dtype=torch.float16)
     b = torch.randn((2*M, M), device='cuda', dtype=torch.float16)
     @jit(
-        total_flops=M*M*(2*2*M-1),  
+        total_flops=M*M*(2*2*M-1),
         seed=FLAGS.seed,
         save_suffix=str(M),
         save_dir='matmul',
