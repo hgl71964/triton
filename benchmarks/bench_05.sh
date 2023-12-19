@@ -12,7 +12,7 @@ workloads=(
         32768
      )
 
-for seed in $( seq 10 $seeds ); do
+for seed in $( seq 1 $seeds ); do
         for workload in "${workloads[@]}"; do
                 echo
                 echo "workload ${workload}; seed ${seed}: "
