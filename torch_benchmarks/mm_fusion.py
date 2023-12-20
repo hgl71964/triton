@@ -5,12 +5,15 @@ from torch import _dynamo as torchdynamo
 from absl import app
 from absl import flags
 
-FLAGS = flags.FLAGS
+# see: TORCHINDUCTOR_MAX_AUTOTUNE_GEMM_BACKENDS
+# from torch._inductor.config
+# also: https://discuss.pytorch.org/t/getting-triton-to-generate-all-kernels/189173
 
+FLAGS = flags.FLAGS
 flags.DEFINE_integer("n", 0, "")
 
 
-@torchdynamo.optimize("inductor", nopython=True)
+# @torchdynamo.optimize("inductor", nopython=True)
 def mm_add_relu(a, b, bias):
     y = torch.mm(a, b)
     y += bias
@@ -34,12 +37,11 @@ def bench(shape):
     args = (a, b, bias)
 
     # https://pytorch.org/docs/stable/generated/torch.compile.html#torch.compile
-    # fn = torch.compile(
-    #     mm_add_relu,
-    #     backend='inductor',
-    #     mode='default',
-    # )
-    fn = mm_add_relu
+    fn = torch.compile(
+        mm_add_relu,
+        backend='inductor',
+        mode='max-autotune-no-cudagraphs',
+    )
 
     fn(*args)
 

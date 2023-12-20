@@ -63,17 +63,17 @@ def conv_bn_relu_torchinductor(
         groups=groups,
     ).to(device)(x)
 
-    # y = torch.batch_norm(
-    #     y,
-    #     weight=bn_weight,
-    #     bias=bn_bias,
-    #     running_mean=running_mean,
-    #     running_var=running_var,
-    #     training=False,
-    #     momentum=1,
-    #     eps=1e-5,
-    #     cudnn_enabled=True,
-    # )
+    y = torch.batch_norm(
+        y,
+        weight=bn_weight,
+        bias=bn_bias,
+        running_mean=running_mean,
+        running_var=running_var,
+        training=False,
+        momentum=1,
+        eps=1e-5,
+        cudnn_enabled=True,
+    )
     y = torch.nn.ReLU().to(device)(y)
     return y
 

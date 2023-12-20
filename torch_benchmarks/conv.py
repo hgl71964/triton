@@ -2,6 +2,8 @@ import torch
 from torch import _dynamo as torchdynamo
 # from torch import _inductor as inductor
 
+# run to dump kernel: TORCH_COMPILE_DEBUG=1 python conv.py
+
 device = torch.device("cuda:0")
 
 batch_size = 32
