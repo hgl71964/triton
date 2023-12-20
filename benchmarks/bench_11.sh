@@ -3,13 +3,11 @@
 # config
 seeds=100
 workloads=(
-        512
-        1024
-        2048
-        4096
-        8192
-        16384
-        32768
+        11
+        12
+        13
+        14
+        15
      )
 
 for seed in $( seq 1 $seeds ); do
@@ -17,7 +15,7 @@ for seed in $( seq 1 $seeds ); do
                 echo
                 echo "workload ${workload}; seed ${seed}: "
                 echo
-                python benchmarks/06-fused-attention.py \
+                python benchmarks/11-grouped-gemm.py \
                         --seed $seed \
                         --ctx $workload
         done
