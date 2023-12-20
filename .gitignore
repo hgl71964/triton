@@ -46,3 +46,4 @@ docs/getting-started/tutorials
 .vs
 
 data/
+torch_compile_debug/
