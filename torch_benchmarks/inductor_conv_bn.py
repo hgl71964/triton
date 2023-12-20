@@ -1,6 +1,7 @@
 import torch
-from torch import _dynamo as torchdynamo
-from torch import _inductor as inductor
+# from torch import _dynamo as torchdynamo
+# from torch import _inductor as inductor
+# from torch._inductor.triton_heuristics import AutotuneHint, pointwise
 
 from absl import app
 from absl import flags
@@ -48,31 +49,42 @@ def conv_bn_relu_torchinductor(
     running_var,
     bn_weight,
     bn_bias,
+    device,
 ):
-    y = torch.conv2d(x, w, None, stride, padding, dilation, groups)
-    y = torch.batch_norm(
-        y,
-        weight=bn_weight,
-        bias=bn_bias,
-        running_mean=running_mean,
-        running_var=running_var,
-        training=False,
-        momentum=1,
-        eps=1e-5,
-        cudnn_enabled=True,
-    )
-    return torch.relu(y)
+    # y = torch.conv2d(x, w, None, stride, padding, dilation, groups)
+
+    y = torch.nn.Conv2d(
+        x.shape[1],
+        w.shape[0],
+        kernel_size=w.shape[2:],
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    ).to(device)(x)
+
+    # y = torch.batch_norm(
+    #     y,
+    #     weight=bn_weight,
+    #     bias=bn_bias,
+    #     running_mean=running_mean,
+    #     running_var=running_var,
+    #     training=False,
+    #     momentum=1,
+    #     eps=1e-5,
+    #     cudnn_enabled=True,
+    # )
+    y = torch.nn.ReLU().to(device)(y)
+    return y
 
 
 def main(_):
-
     device = torch.device("cuda:0")
 
     # workload
     BATCH = 32
     layer = resnet50_layers[FLAGS.n]
-    IN_H, IN_W, IN_C, KERNEL_H, KERNEL_W, KERNEL_N, stride, padding = resnet50_layers[
-        layer]
+    IN_H, IN_W, IN_C, KERNEL_H, KERNEL_W, KERNEL_N, stride, padding = layer
     dilation, groups = (1, 1), 1
     dtype = torch.float32
 
@@ -82,7 +94,16 @@ def main(_):
              (KERNEL_W - 1) - 1 + stride[1]) // stride[1]
     tflops = (lambda ms: 2.0 * BATCH * OUT_H * OUT_W * IN_C * KERNEL_H *
               KERNEL_W * KERNEL_N / ms * 1e-9)
+
+    # allocate inputs, nchw
+    x = torch.randn((BATCH, IN_C, IN_H, IN_W), dtype=dtype).to(device)
+    w = torch.randn(
+        (KERNEL_N, IN_C // groups, KERNEL_H, KERNEL_W),
+        dtype=dtype,
+    ).to(device)
+
     bias = torch.randn((KERNEL_N, ), dtype=dtype).to(device)
+
     args = (x, w, bias, stride, padding, dilation, groups)
 
     running_mean = torch.randn(
@@ -106,13 +127,8 @@ def main(_):
         running_var,
         bn_weight,
         bn_bias,
+        device,
     )
-
-    # allocate inputs, nchw
-    x = torch.randn((BATCH, IN_C, IN_H, IN_W), dtype=dtype).to(device)
-    w = torch.randn((KERNEL_N, IN_C // groups, KERNEL_H, KERNEL_W),
-                    dtype=dtype,
-                    device="cuda")
 
     # https://pytorch.org/docs/stable/generated/torch.compile.html#torch.compile
     fn = torch.compile(

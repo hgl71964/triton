@@ -1,5 +1,6 @@
 import torch
 import triton
+from torch import _dynamo as torchdynamo
 
 from absl import app
 from absl import flags
@@ -9,6 +10,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer("n", 0, "")
 
 
+@torchdynamo.optimize("inductor", nopython=True)
 def mm_add_relu(a, b, bias):
     y = torch.mm(a, b)
     y += bias
@@ -32,11 +34,12 @@ def bench(shape):
     args = (a, b, bias)
 
     # https://pytorch.org/docs/stable/generated/torch.compile.html#torch.compile
-    fn = torch.compile(
-        mm_add_relu,
-        backend='inductor',
-        mode='max-autotune-no-cudagraphs',
-    )
+    # fn = torch.compile(
+    #     mm_add_relu,
+    #     backend='inductor',
+    #     mode='default',
+    # )
+    fn = mm_add_relu
 
     fn(*args)
 
@@ -52,19 +55,20 @@ def main(_):
     shapes = [
         # alexnet
         ([128, 9216], [9216, 4096]),
-        ([128, 4096], [4096, 4096]),
-        ([128, 4096], [4096, 1000]),
-        # BERT
-        ([2048, 768], [768, 768]),
-        ([2048, 768], [768, 3072]),
-        ([2048, 3072], [3072, 768]),
-        # hf_GPT2
-        ([1024, 768], [768, 768]),
-        ([1024, 768], [768, 3072]),
-        ([1024, 3072], [3072, 768]),
-        ([1024, 768], [768, 2304]),
+        # ([128, 4096], [4096, 4096]),
+        # ([128, 4096], [4096, 1000]),
+        # # BERT
+        # ([2048, 768], [768, 768]),
+        # ([2048, 768], [768, 3072]),
+        # ([2048, 3072], [3072, 768]),
+        # # hf_GPT2
+        # ([1024, 768], [768, 768]),
+        # ([1024, 768], [768, 3072]),
+        # ([1024, 3072], [3072, 768]),
+        # ([1024, 768], [768, 2304]),
     ]
-    bench(shapes)
+    for id, shape in enumerate(shapes):
+        bench(shape)
 
     # p = PrettyTable()
     # field_names = ["layer"]
@@ -83,3 +87,7 @@ def main(_):
     #
     # print(p)
     #
+
+
+if __name__ == "__main__":
+    app.run(main)
