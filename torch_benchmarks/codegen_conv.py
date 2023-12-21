@@ -138,6 +138,7 @@ def main(_):
     torch.manual_seed(FLAGS.seed)
     torch.backends.cudnn.deterministic = True
 
+    # YAPF: disable
     # TODO fail to assemble at A100
     # @template(num_stages=1, num_warps=8, meta={'signature': {0: '*fp32', 1: '*fp32', 2: '*fp32', 3: '*fp32'}, 'device': 0, 'device_type': 'cuda', 'constants': {}, 'configs': [instance_descriptor(divisible_by_16=(0, 1, 2, 3), equal_to_1=(), ids_of_folded_args=(), divisible_by_8=())]})
     # @triton.jit
@@ -147,10 +148,7 @@ def main(_):
         save_dir='conv3x3',
     )
     def conv_kernel(
-        arg_X,
-        arg_W,
-        in_ptr2,
-        out_ptr1,
+        arg_X, arg_W, in_ptr2, out_ptr1,  # 
         KERNEL_H: tl.constexpr,
         KERNEL_W: tl.constexpr,
         STRIDE_H: tl.constexpr,
@@ -256,6 +254,7 @@ def main(_):
         tmp1 = acc + tmp0
         tl.store(out_ptr1 + (x5 + (50176 * idx_c) + (301056 * idx_n)), tmp1,
                  mask)
+    # YAPF: enable
 
     run(conv_kernel)
 
