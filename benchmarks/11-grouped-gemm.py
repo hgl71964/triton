@@ -252,12 +252,16 @@ def main(_):
             d_g_sizes,
             d_g_lds,
             group_size,
+            NUM_SM=128,
+            BLOCK_SIZE_M=128,
+            BLOCK_SIZE_N=128,
+            BLOCK_SIZE_K=32,
         )
 
         return group_C
 
 
-    tri_out = group_gemm_fn(group_A, group_B)
+    tri_out = group_gemm_fn(group_A, group_B, grouped_matmul_kernel)
     ref_out = [torch.matmul(a, b) for a, b in zip(group_A, group_B)]
     for i in range(group_size):
         assert torch.allclose(ref_out[i], tri_out[i], atol=1e-2, rtol=0)

@@ -17,6 +17,6 @@ for seed in $( seq 1 $seeds ); do
                 echo
                 python benchmarks/11-grouped-gemm.py \
                         --seed $seed \
-                        --ctx $workload
+                        --wl $workload
         done
 done
