@@ -1,2 +1,0 @@
-MUTABLES = ['LDG', 'STG', 'LDS', 'LDSM']
-BAN = ['LDGDEPBAR']

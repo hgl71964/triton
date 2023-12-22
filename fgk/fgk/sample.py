@@ -1,7 +1,8 @@
 from copy import deepcopy
 from abc import ABC, abstractmethod
 
-from fgk.utils.constant import MUTABLES, BAN
+from fgk.utils.constant import get_mutatable_ops
+from fgk.utils.gpu_utils import get_gpu_cc
 
 
 class Sample(ABC):
@@ -61,18 +62,23 @@ class Sample(ABC):
             # skip headers
             if len(line) > 0 and line[0] == '[':
                 out = self.engine.decode(line)
-                _, _, _, opcode, _, _ = out
+                ctrl_code, _, _, opcode, _, _ = out
 
+                # opcode is like: LDG.E.128.SYS
+                # i.e. {inst}.{modifier*}
+                memory_ops, ban_ops = get_mutatable_ops(get_gpu_cc())
                 ban = False
-                for op in BAN:
+                for op in ban_ops:
                     if op in opcode:
                         ban = True
                         break
                 if ban:
+                    # print(f'ban {ctrl_code} {opcode}')
                     continue
 
-                for op in MUTABLES:
+                for op in memory_ops:
                     if op in opcode:
+                        # print(f'mutable {ctrl_code} {opcode}')
                         self.candidates.append(i)
                         lines.append(line)
                         break
