@@ -447,7 +447,8 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
     o = torch.empty_like(q)
     BLOCK_M = 128
     BLOCK_N = 64 if Lk <= 64 else 32
-    num_stages = 4 if Lk <= 64 else 3
+    # num_stages = 4 if Lk <= 64 else 3  # ampere
+    num_stages = 2  # turing
     num_warps = 4
     stage = 3 if causal else 1
     # Tuning for H100
