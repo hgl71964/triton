@@ -3,6 +3,7 @@ import builtins
 from typing import Dict, Union
 from copy import deepcopy
 
+import numpy as np
 import torch
 
 from triton.testing import do_bench
@@ -47,14 +48,11 @@ class Autotuner(TritonAutotuner):
             rep,
         )
 
+        assert isinstance(fn, asm_JITFunction), f"Unsupported type {type(fn)} for {fn}"
         self.ret_ptr = ret_ptr
         self.test_samples = test_samples
 
     def _bench(self, *args, config, **meta):
-
-        # gh512
-        assert isinstance(self.fn, asm_JITFunction)
-
         # check for conflicts, i.e. meta-parameters both provided
         # as kwargs and by the autotuner
         conflicts = meta.keys() & config.kwargs.keys()
@@ -107,7 +105,8 @@ class Autotuner(TritonAutotuner):
 
         # if the group gemm example, addr of tensor is passed, so it is
         testable = True
-        if not torch.all_close(self.nargs[self.ret_ptr], torch.Tensor([0.0])):
+        ret_tensor = self.nargs[self.ret_ptr]
+        if not torch.allclose(ret_tensor, torch.zeros_like(ret_tensor)):
             testable = False
             logger.critical(f'cannot generate test example for {self.ret_ptr}')
 
@@ -145,9 +144,15 @@ class Autotuner(TritonAutotuner):
 
         # gh512: run search and test
         if testable:
-            test_samples = self.gen_test_samples()
+            test_samples = self.gen_test_samples(
+                num_warps=config.num_warps,
+                num_stages=config.num_stages,
+                num_ctas=config.num_ctas,
+                enable_warp_specialization=config.enable_warp_specialization,
+                **kwargs,
+                **config.kwargs,
+            )
 
-        # TODO
         ret = self.fn.run(
             *args,
             num_warps=config.num_warps,
@@ -159,31 +164,83 @@ class Autotuner(TritonAutotuner):
         )
         self.nargs = None
 
-        # TODO add test
         if testable:
-            self.e2e_test()
+            self.e2e_test(test_samples,
+            num_warps=config.num_warps,
+            num_stages=config.num_stages,
+            num_ctas=config.num_ctas,
+            enable_warp_specialization=config.enable_warp_specialization,
+            **kwargs,
+            **config.kwargs,
+                          )
 
         return ret
 
-    def gen_test_samples(self) -> list[dict]:
+    def gen_test_samples(self, **kwargs) -> list[dict]:
         test_samples = []
         for t in range(self.test_samples):
-            test = {}
+            test_dict = {}
+            test_list = []
             for name, inp in self.nargs.items():
+                arg = None
                 if isinstance(inp, torch.Tensor):
                     if name == self.ret_ptr:
-                        test[name] = torch.empty_like(inp)
+                        arg = torch.empty_like(inp)
                     else:
-                        test[name] = torch.randn_like(inp).uniform_(0, 1)
+                        arg = torch.randn_like(inp).uniform_(0, 1)
                 else:
-                    test[name] = deepcopy(inp)
+                    arg = deepcopy(inp)
 
-            test_samples.append(test)
+                test_dict[name] = arg
+                test_list.append(arg)
+
+            # NOTE: change tensor data should not trigger re-compile
+            self.fn.run(
+                *test_list,
+                **kwargs,
+            )
+            test_samples.append(test_dict)
 
         return test_samples
 
-    def e2e_test(self, test_samples):
-        return
+    def e2e_test(self, test_samples: list[dict], **kwargs) -> list[bool]:
+        oks = []
+        for t, test_sample in enumerate(test_samples):
+
+            test_list = []
+            ref = None
+            for name, inp in test_sample.items():
+                if isinstance(inp, torch.Tensor):
+                    if name == self.ret_ptr:
+                        ref = inp
+                        arg = torch.empty_like(ref)
+                        out_buffer = arg
+                else:
+                    arg = inp
+
+                test_list.append(arg)
+
+            # NOTE: change tensor data should not trigger re-compile
+            self.fn.run(
+                *test_list,
+                **kwargs,
+            )
+
+            # TODO: atm we only consider one output from kernel
+            if torch.allclose(ref, out_buffer):
+                oks.append(True)
+            else:
+                oks.append(False)
+        
+        passes = sum(oks)
+        total = len(oks)
+        if np.all(oks):
+            logger.info(f"kernel verified ✅ for {total} test samples")
+        else:
+            logger.error(f"kernel fail ❌; only {passes}/{total} passes")
+
+        return oks
+
 
 
 def autotune(
@@ -193,6 +250,8 @@ def autotune(
         # the index to the ret_ptr
         ret_ptr: Union[int, str],
         test_samples: int = 10,
+
+        # other default
         prune_configs_by=None,
         reset_to_zero=None,
         restore_value=None,
@@ -201,6 +260,7 @@ def autotune(
     def decorator(fn):
         return Autotuner(fn, fn.arg_names, configs, key, reset_to_zero,
                          restore_value, prune_configs_by, warmup, rep, ret_ptr,
-                         test_samples)
+                         test_samples,
+                         )
 
     return decorator

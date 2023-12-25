@@ -6,6 +6,49 @@ from fgk.simulated_annealing import run_simulated_annealing, launch
 from fgk.genetic_algorithm import run_genetic_algorithm
 
 
+def jit(
+    fn,
+    *,
+    version=None,
+    do_not_specialize=None,
+    debug=None,
+    noinline=None,
+):
+    def decorator(fn: T) -> JITFunction[T]:
+        assert callable(fn)
+        return asm_JITFunction(
+            fn,
+            # sa
+            max_iterations=1000,
+            temperature=0.4,
+            cooling_rate=0.003,
+            noise_factor=0.0,
+            policy="single",
+            # ga
+            population_size=100,
+            generations=50,
+            mutation_rate=0.1,
+            tournament_size=5,
+
+            # workload config
+            total_flops=1e9,  # TODO fixme
+            seed=0,
+            save_suffix="",
+            save_dir=None,
+
+            # other
+            version=None,
+            do_not_specialize=None,
+            debug=None,
+            noinline=None,
+        )
+
+    if fn is not None:
+        return decorator(fn)
+
+    else:
+        return decorator
+
 def search(
     # workload config
     total_flops,
