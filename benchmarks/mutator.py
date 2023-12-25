@@ -17,7 +17,6 @@ from sample import Sample
 
 
 class MutationEngine:
-
     def __init__(
         self,
         cf,
@@ -229,7 +228,6 @@ class MutationEngine:
 
 
 def main():
-
     def decode(line: str):
         line = line.strip('\n')
         line = line.split(' ')

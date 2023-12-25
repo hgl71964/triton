@@ -16,7 +16,6 @@ from fgk.sample import Sample
 
 
 class MutationEngine:
-
     def __init__(
         self,
         bin: CompiledKernel,

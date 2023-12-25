@@ -25,9 +25,7 @@ def jit(
     mutation_rate=0.1,
     tournament_size=5,
 ):
-
     def wrapper(fn):
-
         def decorator(fn: T):
             assert callable(fn)
             return asm_JITFunction(
@@ -63,7 +61,6 @@ def jit(
 
 
 class asm_JITFunction(JITFunction):
-
     def __init__(
             self,
             fn,
@@ -548,3 +545,7 @@ class asm_JITFunction(JITFunction):
                 *bin.assemble_tensormap_to_arg(non_constexpr_arg_values),
             )
         return bin
+
+    # execute triton's default run
+    def triton_run(self, *args, **kwargs):
+        return super().run(*args, **kwargs)
