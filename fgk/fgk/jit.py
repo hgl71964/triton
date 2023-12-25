@@ -6,7 +6,7 @@ from fgk.simulated_annealing import run_simulated_annealing, launch
 from fgk.genetic_algorithm import run_genetic_algorithm
 
 
-def jit(
+def search(
     # workload config
     total_flops,
     seed=0,

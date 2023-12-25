@@ -37,7 +37,7 @@ import torch
 import triton
 import triton.language as tl
 
-from fgk.jit import jit
+from fgk.jit import search
 
 try:
     # This is https://github.com/NVIDIA/apex, NOT the apex on PyPi, so it
@@ -430,7 +430,7 @@ def main(_):
     dtype = torch.float16
     eps=1e-5
 
-    @jit(
+    @search(
         total_flops=1e9,  # just to make it working
         seed=FLAGS.seed,
         save_suffix=str(N),

@@ -26,7 +26,7 @@ import torch
 import triton
 import triton.language as tl
 
-from fgk.jit import jit
+from fgk.jit import search
 
 
 @torch.jit.script
@@ -73,7 +73,7 @@ def naive_softmax(x):
 
 
 # @triton.jit
-@jit
+@search
 def softmax_kernel(output_ptr, input_ptr, input_row_stride, output_row_stride,
                    n_cols, BLOCK_SIZE: tl.constexpr):
     # The rows of the softmax are independent, so we parallelize across those

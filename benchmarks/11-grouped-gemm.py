@@ -34,7 +34,7 @@ import torch
 import triton
 import triton.language as tl
 
-from fgk.jit import jit
+from fgk.jit import search
 
 from absl import app
 from absl import flags
@@ -99,7 +99,6 @@ def main(_):
     #     ],
     #     key=['group_size'],
     # )
-    # @triton.jit
 
     wl = FLAGS.wl
     # group_m = [1024, 512, 256, 128]
@@ -125,7 +124,7 @@ def main(_):
         group_B.append(B)
 
 
-    @jit(
+    @search(
         # workload
         total_flops=total_flops,
         seed=FLAGS.seed,

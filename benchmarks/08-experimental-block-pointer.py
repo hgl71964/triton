@@ -14,7 +14,7 @@ import torch
 import triton
 import triton.language as tl
 
-from fgk.jit import jit
+from fgk.jit import search
 
 from absl import app
 from absl import flags
@@ -51,7 +51,7 @@ def main(_):
     M = FLAGS.wl
     a = torch.randn((M, 2*M), device='cuda', dtype=torch.float16)
     b = torch.randn((2*M, M), device='cuda', dtype=torch.float16)
-    @jit(
+    @search(
         total_flops=M*M*(2*2*M-1),
         seed=FLAGS.seed,
         save_suffix=str(M),

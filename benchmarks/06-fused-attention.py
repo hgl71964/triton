@@ -20,7 +20,7 @@ import triton.language as tl
 import random
 import numpy as np
 
-from fgk.jit import jit
+from fgk.jit import search
 
 from absl import app
 from absl import flags
@@ -531,9 +531,7 @@ def main(_):
         total_flops *= 0.5
     sm_scale = 0.5
 
-
-    # @triton.jit
-    @jit(
+    @search(
         # workload
         total_flops=total_flops,
         seed=FLAGS.seed,

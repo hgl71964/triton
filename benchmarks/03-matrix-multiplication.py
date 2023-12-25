@@ -154,7 +154,8 @@ import torch
 
 import triton
 import triton.language as tl
-from triton.runtime.jit import asm_jit
+
+from fgk.jit import search
 
 # yapf: disable
 
@@ -186,7 +187,7 @@ from triton.runtime.jit import asm_jit
 #     key=['M', 'N', 'K'],
 # )
 # @triton.jit
-@asm_jit
+@search
 def matmul_kernel(
         # Pointers to matrices
         a_ptr, b_ptr, c_ptr,
