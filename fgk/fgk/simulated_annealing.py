@@ -250,33 +250,34 @@ def run_simulated_annealing(
     return bin
 
 
+# YAPF: disable
+
 def run(
-    # YAPF: disable
-    so_path,
-    metadata,
-    asm,
-    queue,
+    # compile args
+    so_path, metadata, asm,
 
     # args
-    args,
-    sig_key,
-    non_constexpr_arg_values,
-    grid_0,
-    grid_1,
-    grid_2,
-    stream,
+    args, sig_key, non_constexpr_arg_values,
+
+    # kernel args
+    grid_0, grid_1, grid_2, stream, # 
+
+    enter_hook, exit_hook,
+
+    # algo
+    n_choice,
     max_iterations,
     temperature,
     cooling_rate,
     policy,
     noise_factor,
-    seed,
-    test_sample,
-    total_flops,
-    save_suffix,
-    warmup,
-    rep,
-    # YAPF: enable
+
+    # utils
+    seed, total_flops, save_suffix, save_dir,
+    warmup, rep,
+
+    # mp
+    queue,
 ):
     bin = fgk_CompiledKernel(so_path, metadata, asm)
     bin = run_simulated_annealing(
@@ -298,7 +299,7 @@ def run(
         policy,
         noise_factor,
         seed,
-        test_sample,
+        10,
         total_flops,
         save_suffix,
         warmup,
@@ -311,59 +312,65 @@ def run(
 
 def launch_simulated_annealing(
     # compile args
-    so_path,
-    metadata,
-    asm,
+    so_path, metadata, asm,
 
     # args
     args,
     sig_key,
     non_constexpr_arg_values,
-    grid_0,
-    grid_1,
-    grid_2,
-    stream,
+
+    # kernel args
+    grid_0, grid_1, grid_2, stream, # 
+
+    enter_hook, exit_hook,
+
+    # algo
+    n_choice,
     max_iterations,
     temperature,
     cooling_rate,
     policy,
     noise_factor,
-    seed,
-    test_sample,
-    total_flops,
-    save_suffix,
-    warmup,
-    rep,
+
+    # utils
+    seed, total_flops, save_suffix, save_dir,
+    warmup, rep,
 ):
+    # we only need cubin
+    dels = []
+    for k, v in asm.items():
+        if k != 'cubin':
+            dels.append(k)
+    for d in dels:
+        asm.pop(d)
+
     set_start_method('spawn')
     queue = Queue()
     process = Process(
         target=run,
         args=(
-            so_path,
-            metadata,
-            asm,
-            queue,
+            so_path, metadata, asm,
 
             # args
-            args,
-            sig_key,
-            non_constexpr_arg_values,
-            grid_0,
-            grid_1,
-            grid_2,
-            stream,
+            args, sig_key, non_constexpr_arg_values,
+
+            # kernel args
+            grid_0, grid_1, grid_2, stream,
+
+            # algo
+            n_choice,
             max_iterations,
             temperature,
             cooling_rate,
             policy,
             noise_factor,
-            seed,
-            test_sample,
-            total_flops,
-            save_suffix,
-            warmup,
-            rep,
+
+            # utils
+            seed, total_flops, save_suffix, save_dir,
+            warmup, rep,  #
+
+            # mp
+            queue,
         ))
     process.start()
     process.join()

@@ -265,7 +265,6 @@ class ASMJITFunction(JITFunction):
                 device_type=device_type,
             )
             bin = launch_simulated_annealing(
-                # YAPF: disable
                 so_path,
                 metadata,
                 asm,
@@ -286,13 +285,11 @@ class ASMJITFunction(JITFunction):
                 self.policy,
                 self.noise_factor,
                 seed=self.seed,
-                test_sample=10,
                 total_flops=self.total_flops,
                 save_suffix=self.save_suffix,
                 save_dir=self.save_dir,
                 warmup=100,
                 rep=100,
-                # YAPF: enable
             )
             self.cache[device][key] = bin
 

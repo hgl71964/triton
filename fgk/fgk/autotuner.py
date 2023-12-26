@@ -51,6 +51,7 @@ class Autotuner(TritonAutotuner):
         # assert isinstance(fn, asm_JITFunction), f"Unsupported type {type(fn)} for {fn}"
         self.ret_ptr = ret_ptr
         self.test_samples = test_samples
+        self.tested = {}  # record tested fn
 
     def _bench(self, *args, config, **meta):
         # check for conflicts, i.e. meta-parameters both provided
@@ -103,10 +104,12 @@ class Autotuner(TritonAutotuner):
             raise TypeError(
                 f"Unsupported type {type(self.ret_ptr)} for {self.ret_ptr}")
 
-        # if the group gemm example, addr of tensor is passed, so it is
         testable = True
         ret_tensor = self.nargs[self.ret_ptr]
-        if not torch.allclose(ret_tensor, torch.zeros_like(ret_tensor)):
+        if self.fn.cache_key in self.tested and self.tested[self.fn.cache_key]:
+            testable = False
+        elif not torch.allclose(ret_tensor, torch.zeros_like(ret_tensor)):
+            # if the group gemm example, addr of tensor is passed directly,
             testable = False
             logger.critical(f'cannot generate test example for {self.ret_ptr}')
 
@@ -153,6 +156,8 @@ class Autotuner(TritonAutotuner):
                 **config.kwargs,
             )
 
+        # clear cache so that it runs with fgk
+        self.fn.cache.clear()
         ret = self.fn.run(
             *args,
             num_warps=config.num_warps,
@@ -196,7 +201,7 @@ class Autotuner(TritonAutotuner):
                 test_list.append(arg)
 
             # NOTE: change tensor data should not trigger re-compile
-            self.fn.run(
+            self.fn.triton_run(
                 *test_list,
                 **kwargs,
             )
@@ -221,7 +226,7 @@ class Autotuner(TritonAutotuner):
                 test_list.append(arg)
 
             # NOTE: change tensor data should not trigger re-compile
-            self.fn.run(
+            self.fn.triton_run(
                 *test_list,
                 **kwargs,
             )
@@ -236,8 +241,10 @@ class Autotuner(TritonAutotuner):
         total = len(oks)
         if np.all(oks):
             logger.info(f"✅ kernel verified for {total} test samples")
+            self.tested[self.fn.cache_key] = True
         else:
             logger.error(f"❌ kernel fail; only {passes}/{total} passes")
+            self.tested[self.fn.cache_key] = False
 
         return oks
 
