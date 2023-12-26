@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 
 
 class GeneticSample(Sample):
+
     def apply(self, index, action):
         lineno = self.candidates[index]
         if action == -1:

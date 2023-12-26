@@ -6,6 +6,7 @@ from fgk.utils.gpu_utils import get_gpu_cc
 
 
 class Sample(ABC):
+
     def __init__(self, kernel_section: list[str], engine):
         self.kernel_section = deepcopy(kernel_section)
         self.engine = engine
@@ -100,6 +101,7 @@ class CtrlSample(Sample):
     """
     only Mutate the control code
     """
+
     def get_mutable(self) -> list[int]:
         if self.dims is not None:
             return self.candidates

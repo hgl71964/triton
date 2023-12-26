@@ -18,13 +18,14 @@ from fgk.sample import Sample
 from fgk.utils.logger import get_logger
 from fgk.utils.record import save_data
 
-# a custom compilation pipeline to be executed in another process
-from fgk.compiler import compile, CompiledKernel
+from fgk.compiler import CompiledKernel as fgk_CompiledKernel
+from fgk.compiler import CompiledKernel
 
 logger = get_logger(__name__)
 
 
 class SimulatedSample(Sample):
+
     def apply(self, index, action):
         lineno = self.candidates[index]
         if action == -1:
@@ -250,19 +251,10 @@ def run_simulated_annealing(
 
 
 def run(
-    fn,
-    signature,
-    device,
-    constants,
-    num_warps,
-    num_ctas,
-    num_stages,
-    enable_warp_specialization,
-    enable_fp_fusion,
-    extern_libs,
-    configs,
-    debug,
-    device_type,
+    # YAPF: disable
+    so_path,
+    metadata,
+    asm,
     queue,
 
     # args
@@ -284,25 +276,9 @@ def run(
     save_suffix,
     warmup,
     rep,
+    # YAPF: enable
 ):
-    bin = compile(
-        # TODO
-        fn,
-
-        # ``
-        signature=signature,
-        device=device,
-        constants=constants,
-        num_warps=num_warps,
-        num_ctas=num_ctas,
-        num_stages=num_stages,
-        enable_warp_specialization=enable_warp_specialization,
-        enable_fp_fusion=enable_fp_fusion,
-        extern_libs=extern_libs,
-        configs=configs,
-        debug=debug,
-        device_type=device_type,
-    )
+    bin = fgk_CompiledKernel(so_path, metadata, asm)
     bin = run_simulated_annealing(
         bin,
         args,
@@ -312,8 +288,8 @@ def run(
         grid_1,
         grid_2,
         stream,
-        CompiledKernel.launch_enter_hook,
-        CompiledKernel.launch_exit_hook,
+        None,
+        None,
         # algo
         1,
         max_iterations,
@@ -333,21 +309,11 @@ def run(
     return bin
 
 
-def launch(
+def launch_simulated_annealing(
     # compile args
-    fn,
-    signature,
-    device,
-    constants,
-    num_warps,
-    num_ctas,
-    num_stages,
-    enable_warp_specialization,
-    enable_fp_fusion,
-    extern_libs,
-    configs,
-    debug,
-    device_type,
+    so_path,
+    metadata,
+    asm,
 
     # args
     args,
@@ -374,19 +340,9 @@ def launch(
     process = Process(
         target=run,
         args=(
-            fn,  # TODO cannot pickle fn
-            signature,
-            device,
-            constants,
-            num_warps,
-            num_ctas,
-            num_stages,
-            enable_warp_specialization,
-            enable_fp_fusion,
-            extern_libs,
-            configs,
-            debug,
-            device_type,
+            so_path,
+            metadata,
+            asm,
             queue,
 
             # args
