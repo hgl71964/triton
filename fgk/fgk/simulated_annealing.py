@@ -4,6 +4,8 @@ import random
 import tempfile
 import time
 from copy import deepcopy
+
+import multiprocessing
 from multiprocessing import Process, Queue, set_start_method
 
 import numpy as np
@@ -344,8 +346,15 @@ def launch_simulated_annealing(
     for d in dels:
         asm.pop(d)
 
-    set_start_method('spawn')
+    # mp_context = multiprocessing.get_context('spawn')
+    # p = mp_context.Process(target=time.sleep, args=(1000,))
+
+    # set_start_method('spawn')
     queue = Queue()
+
+    #  To use CUDA with multiprocessing, you must use the 'spawn' start method
+    # mp_context = multiprocessing.get_context('spawn')
+    # process = mp_context.Process(
     process = Process(
         target=run,
         args=(
@@ -356,6 +365,9 @@ def launch_simulated_annealing(
 
             # kernel args
             grid_0, grid_1, grid_2, stream,
+
+            # hook
+            enter_hook, exit_hook,
 
             # algo
             n_choice,
@@ -372,6 +384,7 @@ def launch_simulated_annealing(
             # mp
             queue,
         ))
+
     process.start()
     process.join()
 
