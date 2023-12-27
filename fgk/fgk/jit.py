@@ -22,7 +22,6 @@ def jit(
         assert callable(fn)
         return ASMJITFunction(
             fn,
-            # other
             version=None,
             do_not_specialize=None,
             debug=None,
@@ -225,6 +224,7 @@ class ASMJITFunction(JITFunction):
                 warmup=100,
                 rep=100,
             )
+            bin = fgk_CompiledKernel(so_path, metadata, asm)
             self.cache[device][key] = bin
 
         bin = self.cache[device][key]

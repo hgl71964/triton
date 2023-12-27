@@ -305,7 +305,8 @@ def target_func(
         rep,
     )
     # print('opt asm: ', id(asm))
-    queue.put(asm)
+    # queue.put(asm)
+    queue.put('ok')
 
 
 def launch_simulated_annealing(
