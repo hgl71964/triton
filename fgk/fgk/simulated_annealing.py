@@ -21,7 +21,6 @@ from fgk.utils.logger import get_logger
 from fgk.utils.record import save_data
 
 from fgk.compiler import CompiledKernel as fgk_CompiledKernel
-from fgk.compiler import CompiledKernel
 
 logger = get_logger(__name__)
 
@@ -231,9 +230,6 @@ def run_simulated_annealing(
     logger.info(
         f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
 
-    # ===== test =====
-    # TODO
-
     # ===== save =====
     save_data(
         bin,
@@ -254,7 +250,7 @@ def run_simulated_annealing(
 
 # YAPF: disable
 
-def run(
+def target_func(
     # compile args
     so_path, metadata, asm,
 
@@ -281,20 +277,20 @@ def run(
     # mp
     queue,
 ):
+    # print('asm: ', id(asm))
     bin = fgk_CompiledKernel(so_path, metadata, asm)
     bin = run_simulated_annealing(
         bin,
         args,
         sig_key,
         non_constexpr_arg_values,
-        grid_0,
-        grid_1,
-        grid_2,
-        stream,
-        None,
-        None,
+
+        grid_0, grid_1, grid_2, stream,
+
+        enter_hook, exit_hook,
+
         # algo
-        1,
+        n_choice,
         max_iterations,
         temperature,
         cooling_rate,
@@ -304,12 +300,12 @@ def run(
         10,
         total_flops,
         save_suffix,
+        save_dir,
         warmup,
         rep,
     )
-
-    queue.put('ok')
-    return bin
+    # print('opt asm: ', id(asm))
+    queue.put(asm)
 
 
 def launch_simulated_annealing(
@@ -346,17 +342,13 @@ def launch_simulated_annealing(
     for d in dels:
         asm.pop(d)
 
-    # mp_context = multiprocessing.get_context('spawn')
-    # p = mp_context.Process(target=time.sleep, args=(1000,))
+    # NOTE: the driver code must wrap within if __name__ == '__main__'
+    # To use CUDA with multiprocessing, you must use the 'spawn' start method
+    mp_context = multiprocessing.get_context('spawn')
+    queue = mp_context.Queue()
 
-    # set_start_method('spawn')
-    queue = Queue()
-
-    #  To use CUDA with multiprocessing, you must use the 'spawn' start method
-    # mp_context = multiprocessing.get_context('spawn')
-    # process = mp_context.Process(
-    process = Process(
-        target=run,
+    process = mp_context.Process(
+        target=target_func,
         args=(
             so_path, metadata, asm,
 
@@ -367,7 +359,9 @@ def launch_simulated_annealing(
             grid_0, grid_1, grid_2, stream,
 
             # hook
-            enter_hook, exit_hook,
+            # enter_hook, exit_hook,
+            # TODO only use None for now
+            None, None,
 
             # algo
             n_choice,
@@ -388,6 +382,7 @@ def launch_simulated_annealing(
     process.start()
     process.join()
 
-    result = queue.get()
-    # print("Result from the process:", result)
-    return result
+    opt_asm = queue.get()
+    bin = fgk_CompiledKernel(so_path, metadata, opt_asm)
+    logger.info(f'asm search done')
+    return bin

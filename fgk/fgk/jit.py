@@ -38,7 +38,7 @@ def jit(
             total_flops=1e9,  # FIXME
             seed=0,
             save_suffix="",
-            save_dir=None,
+            save_dir='tmp',
 
             # other
             version=None,

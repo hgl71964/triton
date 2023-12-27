@@ -360,9 +360,6 @@ def benchmark(M, N, K, provider):
 
 if __name__ == '__main__':
 
-    # NOTE: to get mp working, we must warp the code within __main__ block and set the start method
-    set_start_method('spawn')
-
     torch.manual_seed(0)
     a = torch.randn((512, 512), device='cuda', dtype=torch.float16)
     b = torch.randn((512, 512), device='cuda', dtype=torch.float16)
