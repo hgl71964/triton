@@ -35,6 +35,7 @@ class Autotuner(TritonAutotuner):
         # gh512
         ret_ptr,
         test_samples,
+        **kwargs,
     ):
         super().__init__(
             fn,
@@ -52,6 +53,41 @@ class Autotuner(TritonAutotuner):
         self.ret_ptr = ret_ptr
         self.test_samples = test_samples
         self.tested = {}  # record tested fn
+
+        # workload
+        self.total_flops = kwargs.get('total_flops', 1e9)
+        self.seed = kwargs.get('seed', 0)
+        self.save_suffix = kwargs.get('save_suffix', '')
+        self.save_dir = kwargs.get('save_dir', None)
+
+        # sa
+        self.max_iterations = kwargs.get('max_iterations', 1000)
+        self.temperature = kwargs.get('temperature', 0.4)
+        self.cooling_rate = kwargs.get('cooling_rate', 0.003)
+        self.noise_factor = kwargs.get('noise_factor', 0.0)
+        self.policy = kwargs.get('policy', 'single')
+        # ga
+        self.population_size = kwargs.get('population_size', 100)
+        self.generations = kwargs.get('generations', 50)
+        self.mutation_rate = kwargs.get('mutation_rate', 0.1)
+        self.tournament_size = kwargs.get('tournament_size', 5)
+
+        # at this time, fn has been init, so we overwrite the default args
+        self.fn.total_flops = self.total_flops
+        self.fn.seed = self.seed
+        self.fn.save_suffix = self.save_suffix
+        self.fn.save_dir = self.save_dir
+
+        self.fn.max_iterations = self.max_iterations
+        self.fn.temperature = self.temperature
+        self.fn.cooling_rate = self.cooling_rate
+        self.fn.noise_factor = self.noise_factor
+        self.fn.policy = self.policy
+
+        self.fn.population_size = self.population_size
+        self.fn.generations = self.generations
+        self.fn.mutation_rate = self.mutation_rate
+        self.fn.tournament_size = self.tournament_size
 
     def _bench(self, *args, config, **meta):
         # check for conflicts, i.e. meta-parameters both provided
@@ -250,19 +286,21 @@ class Autotuner(TritonAutotuner):
 
 
 def autotune(
-        configs,
-        key,
+    configs,
+    key,
 
-        # the index to the ret_ptr
-        ret_ptr: Union[int, str],
-        test_samples: int = 10,
+    # the index to the ret_ptr
+    ret_ptr: Union[int, str],
+    test_samples: int = 100,
 
-        # other default
-        prune_configs_by=None,
-        reset_to_zero=None,
-        restore_value=None,
-        warmup=100,
-        rep=100):
+    # other default
+    prune_configs_by=None,
+    reset_to_zero=None,
+    restore_value=None,
+    warmup=100,
+    rep=100,
+    **kwargs,
+):
 
     def decorator(fn):
         return Autotuner(
@@ -277,6 +315,7 @@ def autotune(
             rep,
             ret_ptr,
             test_samples,
+            **kwargs,
         )
 
     return decorator

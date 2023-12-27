@@ -22,24 +22,6 @@ def jit(
         assert callable(fn)
         return ASMJITFunction(
             fn,
-            # sa
-            max_iterations=1000,
-            temperature=0.4,
-            cooling_rate=0.003,
-            noise_factor=0.0,
-            policy="single",
-            # ga
-            population_size=100,
-            generations=50,
-            mutation_rate=0.1,
-            tournament_size=5,
-
-            # workload config
-            total_flops=1e9,  # FIXME
-            seed=0,
-            save_suffix="",
-            save_dir='tmp',
-
             # other
             version=None,
             do_not_specialize=None,
@@ -55,54 +37,6 @@ def jit(
 
 
 class ASMJITFunction(JITFunction):
-
-    def __init__(
-            self,
-            fn,
-
-            # sa
-            max_iterations,
-            temperature,
-            cooling_rate,
-            noise_factor,
-            policy,
-            # ga
-            population_size,
-            generations,
-            mutation_rate,
-            tournament_size,
-
-            # other config
-            seed,
-            total_flops,
-            save_suffix,
-            save_dir,
-            version=None,
-            do_not_specialize=None,
-            debug=None,
-            noinline=None):
-        super().__init__(
-            fn,
-            version=version,
-            do_not_specialize=do_not_specialize,
-            debug=debug,
-            noinline=noinline,
-        )
-        self.max_iterations = max_iterations
-        self.temperature = temperature
-        self.cooling_rate = cooling_rate
-        self.noise_factor = noise_factor
-        self.policy = policy
-
-        self.population_size = population_size
-        self.generations = generations
-        self.mutation_rate = mutation_rate
-        self.tournament_size = tournament_size
-
-        self.seed = seed
-        self.total_flops = total_flops
-        self.save_suffix = save_suffix
-        self.save_dir = save_dir
 
     def run(self, *args, **kwargs):
 
