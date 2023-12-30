@@ -34,7 +34,8 @@ import torch
 import triton
 import triton.language as tl
 
-from fgk.jit import search
+from fgk.jit import search, jit
+from fgk.autotuner import autotune as fgk_autotune
 
 from absl import app
 from absl import flags
@@ -124,13 +125,32 @@ def main(_):
         group_B.append(B)
 
 
-    @search(
-        # workload
-        total_flops=total_flops,
-        seed=FLAGS.seed,
-        save_suffix=str(wl),
-        save_dir='group_gemm',
+    # @search(
+    #     # workload
+    #     total_flops=total_flops,
+    #     seed=FLAGS.seed,
+    #     save_suffix=str(wl),
+    #     save_dir='group_gemm',
+    # )
+    @fgk_autotune(
+        configs=[
+            triton.Config({
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'NUM_SM': 84,
+            }),
+            triton.Config({
+                'BLOCK_SIZE_M': 128,
+                'BLOCK_SIZE_N': 128,
+                'BLOCK_SIZE_K': 32,
+                'NUM_SM': 128,
+            }),
+        ],
+        key=['group_size'],
+        ret_ptr=None,
     )
+    @jit
     def grouped_matmul_kernel(
         # device tensor of matrices pointers
         group_a_ptrs,
@@ -251,10 +271,6 @@ def main(_):
             d_g_sizes,
             d_g_lds,
             group_size,
-            NUM_SM=128,
-            BLOCK_SIZE_M=128,
-            BLOCK_SIZE_N=128,
-            BLOCK_SIZE_K=32,
         )
 
         return group_C

@@ -169,7 +169,7 @@ from multiprocessing import set_start_method
 #       provided configs
 @fgk_autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=3,
+        triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=1,
                       num_warps=8),
         # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
         #               num_warps=4),
@@ -188,6 +188,7 @@ from multiprocessing import set_start_method
     ],
     key=['M', 'N', 'K'],
     ret_ptr=2,
+    max_iterations=3,
 )
 @jit
 def matmul_kernel(
@@ -371,4 +372,4 @@ if __name__ == '__main__':
         print("✅ Triton and Torch match")
     else:
         print("❌ Triton and Torch differ")
-    benchmark.run(show_plots=True, print_data=True)
+    # benchmark.run(show_plots=True, print_data=True)

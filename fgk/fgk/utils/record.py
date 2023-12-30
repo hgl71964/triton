@@ -17,7 +17,7 @@ def save_data(
     save_suffix,
     save_dir,
     algo,
-):
+) -> str:
     gpu_name = get_gpu_name()
     gpu_name = gpu_name.replace(' ', '_')
 
@@ -49,5 +49,14 @@ def save_data(
     file_name += save_suffix
     file_name += '.pkl'
 
-    with open(f'{dir_path}/{file_name}', 'wb') as f:
+    full_path = f'{dir_path}/{file_name}'
+    with open(full_path, 'wb') as f:
         pickle.dump(data, f)
+    return full_path
+
+
+def read_data(path, ):
+    with open(path, 'rb') as f:
+        data = pickle.load(f)
+
+    return data

@@ -1,6 +1,6 @@
 import time
 import builtins
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 from copy import deepcopy
 
 import numpy as np
@@ -34,7 +34,6 @@ class Autotuner(TritonAutotuner):
 
         # gh512
         ret_ptr,
-        test_samples,
         **kwargs,
     ):
         super().__init__(
@@ -51,14 +50,13 @@ class Autotuner(TritonAutotuner):
 
         # assert isinstance(fn, asm_JITFunction), f"Unsupported type {type(fn)} for {fn}"
         self.ret_ptr = ret_ptr
-        self.test_samples = test_samples
-        self.tested = {}  # record tested fn
 
         # workload
         self.total_flops = kwargs.get('total_flops', 1e9)
         self.seed = kwargs.get('seed', 0)
         self.save_suffix = kwargs.get('save_suffix', '')
         self.save_dir = kwargs.get('save_dir', None)
+        self.n_test_samples = kwargs.get('n_test_samples', 100)
 
         # sa
         self.max_iterations = kwargs.get('max_iterations', 1000)
@@ -77,6 +75,7 @@ class Autotuner(TritonAutotuner):
         self.fn.seed = self.seed
         self.fn.save_suffix = self.save_suffix
         self.fn.save_dir = self.save_dir
+        self.fn.n_test_samples = self.n_test_samples
 
         self.fn.max_iterations = self.max_iterations
         self.fn.temperature = self.temperature
@@ -130,24 +129,20 @@ class Autotuner(TritonAutotuner):
     def run(self, *args, **kwargs):
         self.nargs = dict(zip(self.arg_names, args))
 
-        # gh512 check data at ret_ptr
-        if isinstance(self.ret_ptr, int):
-            idx = self.ret_ptr
-            self.ret_ptr = self.arg_names[idx]
-        elif isinstance(self.ret_ptr, str):
-            pass
-        else:
-            raise TypeError(
-                f"Unsupported type {type(self.ret_ptr)} for {self.ret_ptr}")
+        def get_special_arg(name: str, default=None):
+            if name not in kwargs:
+                return default
+            ret = kwargs[name]
+            del kwargs[name]
+            return ret
 
-        testable = True
-        ret_tensor = self.nargs[self.ret_ptr]
-        if self.fn.cache_key in self.tested and self.tested[self.fn.cache_key]:
-            testable = False
-        elif not torch.allclose(ret_tensor, torch.zeros_like(ret_tensor)):
-            # if the group gemm example, addr of tensor is passed directly,
-            testable = False
-            logger.critical(f'cannot generate test example for {self.ret_ptr}')
+        ret_ptr = get_special_arg("ret_ptr")
+        if self.ret_ptr is not None:
+            ret_ptr = self.ret_ptr
+        test_inputs = get_special_arg("test_inputs")
+        test_outputs = get_special_arg("test_outputs")
+        if ret_ptr is None:  # NOTE: if ret_ptr is not None, we use it as the output test
+            assert test_inputs is not None and test_outputs is not None
 
         if len(self.configs) > 1:
             all_args = {**self.nargs, **kwargs}
@@ -181,17 +176,6 @@ class Autotuner(TritonAutotuner):
         if config.pre_hook is not None:
             config.pre_hook(full_nargs)
 
-        # gh512: run search and test
-        if testable:
-            test_samples = self.gen_test_samples(
-                num_warps=config.num_warps,
-                num_stages=config.num_stages,
-                num_ctas=config.num_ctas,
-                enable_warp_specialization=config.enable_warp_specialization,
-                **kwargs,
-                **config.kwargs,
-            )
-
         # clear cache so that it runs with fgk
         self.fn.cache.clear()
         ret = self.fn.run(
@@ -200,89 +184,15 @@ class Autotuner(TritonAutotuner):
             num_stages=config.num_stages,
             num_ctas=config.num_ctas,
             enable_warp_specialization=config.enable_warp_specialization,
+            ret_ptr=ret_ptr,
+            test_inputs=test_inputs,
+            test_outputs=test_outputs,
             **kwargs,
             **config.kwargs,
         )
         self.nargs = None
 
-        if testable:
-            self.e2e_test(
-                test_samples,
-                num_warps=config.num_warps,
-                num_stages=config.num_stages,
-                num_ctas=config.num_ctas,
-                enable_warp_specialization=config.enable_warp_specialization,
-                **kwargs,
-                **config.kwargs,
-            )
-
         return ret
-
-    def gen_test_samples(self, **kwargs) -> list[dict]:
-        test_samples = []
-        for t in range(self.test_samples):
-            test_dict = {}
-            test_list = []
-            for name, inp in self.nargs.items():
-                arg = None
-                if isinstance(inp, torch.Tensor):
-                    if name == self.ret_ptr:
-                        arg = torch.empty_like(inp)
-                    else:
-                        arg = torch.randn_like(inp).uniform_(0, 1)
-                else:
-                    arg = deepcopy(inp)
-
-                test_dict[name] = arg
-                test_list.append(arg)
-
-            # NOTE: change tensor data should not trigger re-compile
-            self.fn.triton_run(
-                *test_list,
-                **kwargs,
-            )
-            test_samples.append(test_dict)
-
-        return test_samples
-
-    def e2e_test(self, test_samples: list[dict], **kwargs) -> list[bool]:
-        oks = []
-        for t, test_sample in enumerate(test_samples):
-
-            test_list = []
-            ref = None
-            for name, inp in test_sample.items():
-                if isinstance(inp, torch.Tensor) and name == self.ret_ptr:
-                    ref = inp
-                    arg = torch.empty_like(ref)
-                    out_buffer = arg
-                else:
-                    arg = inp
-
-                test_list.append(arg)
-
-            # NOTE: change tensor data should not trigger re-compile
-            self.fn.triton_run(
-                *test_list,
-                **kwargs,
-            )
-
-            # TODO: atm we only consider one output from kernel
-            if torch.allclose(ref, out_buffer):
-                oks.append(True)
-            else:
-                oks.append(False)
-
-        passes = sum(oks)
-        total = len(oks)
-        if np.all(oks):
-            logger.info(f"✅ kernel verified for {total} test samples")
-            self.tested[self.fn.cache_key] = True
-        else:
-            logger.error(f"❌ kernel fail; only {passes}/{total} passes")
-            self.tested[self.fn.cache_key] = False
-
-        return oks
 
 
 def autotune(
@@ -290,8 +200,7 @@ def autotune(
     key,
 
     # the index to the ret_ptr
-    ret_ptr: Union[int, str],
-    test_samples: int = 100,
+    ret_ptr: Optional[int],
 
     # other default
     prune_configs_by=None,
@@ -314,7 +223,6 @@ def autotune(
             warmup,
             rep,
             ret_ptr,
-            test_samples,
             **kwargs,
         )
 

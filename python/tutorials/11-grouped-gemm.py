@@ -46,18 +46,18 @@ import triton.language as tl
             'BLOCK_SIZE_K': 32,
             'NUM_SM': 128,
         }),
-        triton.Config({
-            'BLOCK_SIZE_M': 64,
-            'BLOCK_SIZE_N': 64,
-            'BLOCK_SIZE_K': 32,
-            'NUM_SM': 84,
-        }),
-        triton.Config({
-            'BLOCK_SIZE_M': 64,
-            'BLOCK_SIZE_N': 64,
-            'BLOCK_SIZE_K': 32,
-            'NUM_SM': 128,
-        }),
+        # triton.Config({
+        #     'BLOCK_SIZE_M': 64,
+        #     'BLOCK_SIZE_N': 64,
+        #     'BLOCK_SIZE_K': 32,
+        #     'NUM_SM': 84,
+        # }),
+        # triton.Config({
+        #     'BLOCK_SIZE_M': 64,
+        #     'BLOCK_SIZE_N': 64,
+        #     'BLOCK_SIZE_K': 32,
+        #     'NUM_SM': 128,
+        # }),
     ],
     key=['group_size'],
 )
