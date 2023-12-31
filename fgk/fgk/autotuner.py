@@ -3,9 +3,6 @@ import builtins
 from typing import Dict, Union, Optional
 from copy import deepcopy
 
-import numpy as np
-import torch
-
 from triton.testing import do_bench
 from triton.runtime.autotuner import Autotuner as TritonAutotuner
 from triton.runtime.autotuner import OutOfResources
@@ -18,7 +15,7 @@ logger = get_logger(__name__)
 
 class Autotuner(TritonAutotuner):
     # 1. we use Triton's Autotuner to search for good kernel configurations
-    # 2. use search to find good assembly schedule
+    # 2. then search for good assembly schedule
 
     def __init__(
         self,
@@ -48,7 +45,6 @@ class Autotuner(TritonAutotuner):
             rep,
         )
 
-        # assert isinstance(fn, asm_JITFunction), f"Unsupported type {type(fn)} for {fn}"
         self.ret_ptr = ret_ptr
 
         # workload
@@ -59,6 +55,7 @@ class Autotuner(TritonAutotuner):
         self.n_test_samples = kwargs.get('n_test_samples', 100)
 
         # sa
+        self.sa_runs = kwargs.get('sa_runs', 10)
         self.max_iterations = kwargs.get('max_iterations', 1000)
         self.temperature = kwargs.get('temperature', 0.4)
         self.cooling_rate = kwargs.get('cooling_rate', 0.003)
@@ -77,6 +74,7 @@ class Autotuner(TritonAutotuner):
         self.fn.save_dir = self.save_dir
         self.fn.n_test_samples = self.n_test_samples
 
+        self.fn.sa_runs = self.sa_runs
         self.fn.max_iterations = self.max_iterations
         self.fn.temperature = self.temperature
         self.fn.cooling_rate = self.cooling_rate
@@ -142,7 +140,8 @@ class Autotuner(TritonAutotuner):
         test_inputs = get_special_arg("test_inputs")
         test_outputs = get_special_arg("test_outputs")
         if ret_ptr is None:  # NOTE: if ret_ptr is not None, we use it as the output test
-            assert test_inputs is not None and test_outputs is not None
+            assert test_inputs is not None and test_outputs is not None, f'either ret_ptr or test_inputs and test_outputs must be provided for testing'
+        cache_hit = True
 
         if len(self.configs) > 1:
             all_args = {**self.nargs, **kwargs}
@@ -156,6 +155,7 @@ class Autotuner(TritonAutotuner):
                     key.append(str(arg.dtype))
             key = tuple(key)
             if key not in self.cache:
+                cache_hit = False
                 # prune configs
                 pruned_configs = self.prune_configs(kwargs)
                 bench_start = time.time()
@@ -176,14 +176,16 @@ class Autotuner(TritonAutotuner):
         if config.pre_hook is not None:
             config.pre_hook(full_nargs)
 
-        # clear cache so that it runs with fgk
-        self.fn.cache.clear()
+        # not cache hit means the cache is filled with triton_run output
+        if not cache_hit:
+            self.fn.cache.clear()  # TODO this clears others too!
         ret = self.fn.run(
             *args,
             num_warps=config.num_warps,
             num_stages=config.num_stages,
             num_ctas=config.num_ctas,
             enable_warp_specialization=config.enable_warp_specialization,
+            # gh512
             ret_ptr=ret_ptr,
             test_inputs=test_inputs,
             test_outputs=test_outputs,

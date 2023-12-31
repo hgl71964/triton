@@ -334,7 +334,8 @@ def matmul(a, b, activation=""):
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=['M', 'N', 'K'],  # Argument names to use as an x-axis for the plot
-        x_vals=[128 * i for i in range(2, 33)],  # Different possible values for `x_name`
+        # x_vals=[128 * i for i in range(2, 33)],  # Different possible values for `x_name`
+        x_vals=[128 * i for i in range(2, 5)],  # Different possible values for `x_name`
         line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
         # Possible values for `line_arg`
         line_vals=['cublas', 'triton'],
@@ -372,4 +373,4 @@ if __name__ == '__main__':
         print("✅ Triton and Torch match")
     else:
         print("❌ Triton and Torch differ")
-    # benchmark.run(show_plots=True, print_data=True)
+    benchmark.run(show_plots=True, print_data=True)

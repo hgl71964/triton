@@ -60,7 +60,7 @@ class ASMJITFunction(JITFunction):
         device = get_special_arg("device")
         device_type = get_special_arg("device_type")
 
-        # gh512
+        # gh512 test args
         ret_ptr = get_special_arg("ret_ptr")
         test_inputs = get_special_arg("test_inputs")
         test_outputs = get_special_arg("test_outputs")
@@ -219,6 +219,7 @@ class ASMJITFunction(JITFunction):
                 CompiledKernel.launch_enter_hook,
                 CompiledKernel.launch_exit_hook,  # 
                 # algo
+                self.sa_runs,
                 1,
                 self.max_iterations,
                 self.temperature,

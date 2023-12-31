@@ -6,7 +6,6 @@ import time
 from copy import deepcopy
 
 import multiprocessing
-from multiprocessing import Process, Queue, set_start_method
 
 import numpy as np
 import torch
@@ -467,9 +466,10 @@ def test_func(
             test_samples,
         )
         all_ok = np.all(oks)
+        time.sleep(0.1)
         if not all_ok:  # we don't save unverified kernel
             os.remove(path)
-
+        time.sleep(0.5)
         queue.put(all_ok)
 
     else:
@@ -492,6 +492,7 @@ def launch_simulated_annealing(
     enter_hook, exit_hook,
 
     # algo
+    sa_runs,
     n_choice,
     max_iterations,
     temperature,
@@ -508,7 +509,7 @@ def launch_simulated_annealing(
 ):
     # we only need cubin
     dels = []
-    for k, v in asm.items():
+    for k, _ in asm.items():
         if k != 'cubin':
             dels.append(k)
     for d in dels:
@@ -517,86 +518,103 @@ def launch_simulated_annealing(
     # NOTE: the driver code must wrap within if __name__ == '__main__'
     # To use CUDA with multiprocessing, you must use the 'spawn' start method
     mp_context = multiprocessing.get_context('spawn')
-    queue = mp_context.Queue()
+    rankings = {}
 
-    process = mp_context.Process(
-        target=target_func,
-        args=(
-            so_path, metadata, asm,
+    for run in range(sa_runs):
+        queue = mp_context.Queue()
+        process = mp_context.Process(
+            target=target_func,
+            args=(
+                so_path, metadata, asm,
 
-            # args
-            args, sig_key, non_constexpr_arg_values,
+                # args
+                args, sig_key, non_constexpr_arg_values,
 
-            # kernel args
-            grid_0, grid_1, grid_2, stream,
+                # kernel args
+                grid_0, grid_1, grid_2, stream,
 
-            # hook
-            # enter_hook, exit_hook,
-            # TODO only use None for now
-            None, None,
+                # enter_hook, exit_hook,
+                None, None,  # TODO only use None for now
 
-            # algo
-            n_choice,
-            max_iterations,
-            temperature,
-            cooling_rate,
-            policy,
-            noise_factor,
+                # algo
+                n_choice,
+                max_iterations,
+                temperature,
+                cooling_rate,
+                policy,
+                noise_factor,
 
-            # utils
-            seed, total_flops, save_suffix, save_dir,
-            warmup, rep,  #
+                # utils
+                seed, total_flops, save_suffix, save_dir,
+                warmup, rep,  #
 
-            # mp
-            queue,
-        ))
-    process.start()
-    process.join()
-    path = queue.get()
-    logger.info(f'cubin path: {path}')
+                # mp
+                queue,
+            ))
+        process.start()
+        process.join()
+        path = queue.get()
+        logger.debug(f'cubin path: {path}')
 
-    test_func(
-        so_path, metadata, asm,
+        # test_func(
+        #     so_path, metadata, asm,
 
-        # args
-        args, sig_key, non_constexpr_arg_values,
-        ret_ptr, test_inputs, test_outputs,
+        #     # args
+        #     args, sig_key, non_constexpr_arg_values,
+        #     ret_ptr, test_inputs, test_outputs,
 
-        # kernel args
-        grid_0, grid_1, grid_2, stream,
+        #     # kernel args
+        #     grid_0, grid_1, grid_2, stream,
 
-        # hook
-        # enter_hook, exit_hook,
-        None, None,
+        #     # enter_hook, exit_hook,
+        #     None, None,
 
-        path, n_test_samples,
+        #     path, n_test_samples,
 
-        # mp
-        queue,
-    )
-    # queue = mp_context.Queue()
-    # process = mp_context.Process(
-    #     target=test_func,
-    #     args=(
-    #         so_path, metadata, asm,
+        #     # mp
+        #     queue,
+        # )
+        queue = mp_context.Queue()
+        process = mp_context.Process(
+            target=test_func,
+            args=(
+                so_path, metadata, asm,
 
-    #         # args
-    #         args, sig_key, non_constexpr_arg_values,
-    #         ret_ptr, test_inputs, test_outputs,
+                # args
+                args, sig_key, non_constexpr_arg_values,
+                ret_ptr, test_inputs, test_outputs,
 
-    #         # kernel args
-    #         grid_0, grid_1, grid_2, stream,
+                # kernel args
+                grid_0, grid_1, grid_2, stream,
 
-    #         # hook
-    #         # enter_hook, exit_hook,
-    #         None, None,
+                # enter_hook, exit_hook,
+                None, None,
 
-    #         # mp
-    #         queue,
-    #     ))
-    # process.start()
-    # process.join()
+                path, n_test_samples,
 
-    bin = fgk_CompiledKernel(so_path, metadata, asm)
-    # logger.info(f'asm search done')
-    return bin
+                # mp
+                queue,
+            ))
+        process.start()
+        process.join()
+        ok = queue.get()
+
+        if ok:
+            data = read_data(path)
+            rankings[run] = (data['final_perf'], path)
+
+    # find best perf
+    best_run = -1
+    best_perf = -1
+    for runs, (perf, path) in rankings.items():
+        if perf > best_perf:
+            best_run = runs
+            best_perf = perf
+
+    _, path = rankings[best_run]
+    data = read_data(path)
+    opt_asm = {
+        'cubin': data['cubin'],
+    }
+    opt_bin = fgk_CompiledKernel(so_path, metadata, opt_asm)
+    return opt_bin
