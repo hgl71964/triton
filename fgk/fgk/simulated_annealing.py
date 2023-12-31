@@ -606,15 +606,20 @@ def launch_simulated_annealing(
     # find best perf
     best_run = -1
     best_perf = -1
-    for runs, (perf, path) in rankings.items():
+    for runs, (perf, _) in rankings.items():
         if perf > best_perf:
             best_run = runs
             best_perf = perf
 
-    _, path = rankings[best_run]
-    data = read_data(path)
-    opt_asm = {
-        'cubin': data['cubin'],
-    }
-    opt_bin = fgk_CompiledKernel(so_path, metadata, opt_asm)
+    logger.info(f'best run: {best_run}, perf: {best_perf:.2f}')
+    if best_run == -1:
+        # all search fail
+        opt_bin = fgk_CompiledKernel(so_path, metadata, asm)
+    else:
+        _, path = rankings[best_run]
+        data = read_data(path)
+        opt_asm = {
+            'cubin': data['cubin'],
+        }
+        opt_bin = fgk_CompiledKernel(so_path, metadata, opt_asm)
     return opt_bin

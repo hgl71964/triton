@@ -2,6 +2,7 @@ import time
 import builtins
 from typing import Dict, Union, Optional
 from copy import deepcopy
+from collections import defaultdict, namedtuple
 
 from triton.testing import do_bench
 from triton.runtime.autotuner import Autotuner as TritonAutotuner
@@ -68,6 +69,8 @@ class Autotuner(TritonAutotuner):
         self.tournament_size = kwargs.get('tournament_size', 5)
 
         # at this time, fn has been init, so we overwrite the default args
+        self.fn.search_cache = defaultdict(dict)
+
         self.fn.total_flops = self.total_flops
         self.fn.seed = self.seed
         self.fn.save_suffix = self.save_suffix
@@ -141,7 +144,6 @@ class Autotuner(TritonAutotuner):
         test_outputs = get_special_arg("test_outputs")
         if ret_ptr is None:  # NOTE: if ret_ptr is not None, we use it as the output test
             assert test_inputs is not None and test_outputs is not None, f'either ret_ptr or test_inputs and test_outputs must be provided for testing'
-        cache_hit = True
 
         if len(self.configs) > 1:
             all_args = {**self.nargs, **kwargs}
@@ -155,7 +157,6 @@ class Autotuner(TritonAutotuner):
                     key.append(str(arg.dtype))
             key = tuple(key)
             if key not in self.cache:
-                cache_hit = False
                 # prune configs
                 pruned_configs = self.prune_configs(kwargs)
                 bench_start = time.time()
@@ -176,10 +177,7 @@ class Autotuner(TritonAutotuner):
         if config.pre_hook is not None:
             config.pre_hook(full_nargs)
 
-        # not cache hit means the cache is filled with triton_run output
-        if not cache_hit:
-            self.fn.cache.clear()  # TODO this clears others too!
-        ret = self.fn.run(
+        ret = self.fn.search(
             *args,
             num_warps=config.num_warps,
             num_stages=config.num_stages,

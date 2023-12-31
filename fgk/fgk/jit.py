@@ -37,7 +37,7 @@ def jit(
 
 class ASMJITFunction(JITFunction):
 
-    def run(self, *args, **kwargs):
+    def search(self, *args, **kwargs):
 
         # Get a compiler-flags arg like `num_warps` and remove it from kwargs.
         def get_special_arg(name: str, default=None):
@@ -154,7 +154,7 @@ class ASMJITFunction(JITFunction):
             key = (key, tuple(extern_libs.items()))
 
         # Kernel is not cached; we have to compile.
-        if key not in self.cache[device]:
+        if key not in self.search_cache[device]:
             configs = (self._get_config(*[arg.value for arg in args]), )
             constants = {
                 arg.param.num: arg.value
@@ -235,9 +235,9 @@ class ASMJITFunction(JITFunction):
                 rep=100,
             )
             bin = fgk_CompiledKernel(so_path, metadata, asm)
-            self.cache[device][key] = bin
+            self.search_cache[device][key] = bin
 
-        bin = self.cache[device][key]
+        bin = self.search_cache[device][key]
         if not warmup:
             bin.c_wrapper(
                 grid_0,
