@@ -196,7 +196,7 @@ def run_simulated_annealing(
     # ===== start =====
     initial_solution = SimulatedSample(eng.kernel_section, eng)
     _ = initial_solution.get_mutable()
-    init_perf = eng.get_perf(initial_solution)
+    init_perf = max([eng.get_init_perf() for _ in range(5)])
     logger.info(f'init perf: {init_perf:.2f}; dims: {initial_solution.dims}')
     if init_perf < 0:
         raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
