@@ -525,6 +525,8 @@ def launch_simulated_annealing(
 
     for run in range(sa_runs):
         queue = mp_context.Queue()
+        # https://pytorch.org/docs/stable/notes/multiprocessing.html
+        # When a Tensor is sent to another process, the Tensor data is shared. 
         process = mp_context.Process(
             target=target_func,
             args=(
@@ -548,7 +550,7 @@ def launch_simulated_annealing(
                 noise_factor,
 
                 # utils
-                seed, total_flops, save_suffix, save_dir,
+                seed+run, total_flops, save_suffix, save_dir,
                 warmup, rep,  #
 
                 # mp
