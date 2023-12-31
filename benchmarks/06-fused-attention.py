@@ -20,7 +20,8 @@ import triton.language as tl
 import random
 import numpy as np
 
-from fgk.jit import search
+from fgk.jit import search, jit
+from fgk.autotuner import autotune as fgk_autotune
 
 from absl import app
 from absl import flags
@@ -470,12 +471,12 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
         o.stride(0), o.stride(1), o.stride(2), o.stride(3),  #
         q.shape[0], q.shape[1],  #
         N_CTX=q.shape[2],  #
-        BLOCK_M=BLOCK_M,  #
-        BLOCK_N=BLOCK_N,  #
+        # BLOCK_M=BLOCK_M,  #
+        # BLOCK_N=BLOCK_N,  #
         BLOCK_DMODEL=Lk,  #
         STAGE=stage,  #
-        num_warps=num_warps,  #
-        num_stages=num_stages  #
+        # num_warps=num_warps,  #
+        # num_stages=num_stages  #
     )
     return o
 
@@ -487,29 +488,6 @@ def main(_):
     np.random.seed(FLAGS.seed)
     torch.manual_seed(FLAGS.seed)
     torch.backends.cudnn.deterministic = True
-    # We don't run auto-tuning everytime to keep the tutorial fast. Uncommenting
-    # the code below and commenting out the equivalent parameters is convenient for
-    # re-tuning.
-    # @triton.autotune(
-    #    configs=[
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=4, num_warps=8),
-    #        triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
-    #        triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=8),
-    #        triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=4, num_warps=4),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=3, num_warps=4),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=4, num_warps=4),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=7, num_warps=8),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=7, num_warps=8),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=6, num_warps=8),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=5, num_warps=8),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=4, num_warps=8),
-    #        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=6, num_warps=4),
-    #    ],
-    #    key=['N_CTX'],
-    # )
 
     # workload
     Z, H, N_CTX, D_HEAD = 4, 48, FLAGS.ctx, 64
@@ -531,15 +509,36 @@ def main(_):
         total_flops *= 0.5
     sm_scale = 0.5
 
-    @search(
+    @fgk_autotune(
+       configs=[
+           triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=2, num_warps=4),
+           # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
+           # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=8),
+           # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=4, num_warps=4),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=3, num_warps=4),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=4, num_warps=4),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=7, num_warps=8),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=7, num_warps=8),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=6, num_warps=8),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=5, num_warps=8),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=4, num_warps=8),
+           # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=6, num_warps=4),
+       ],
+       key=['N_CTX'],
+       ret_ptr=5,
         # workload
         total_flops=total_flops,
         seed=FLAGS.seed,
         # save_suffix=str(N_CTX)+"_"+str(dtype).replace('.', '_'),
         save_suffix=str(N_CTX),
-        save_dir='flash_attn',
+        # save_dir='flash_attn',
+        save_dir='tmp',
 
         # sa
+        sa_runs=100,
         max_iterations=FLAGS.max_iterations,
         temperature=FLAGS.temperature,
         cooling_rate=FLAGS.cooling_rate,
@@ -551,6 +550,7 @@ def main(_):
         mutation_rate=FLAGS.mutation_rate,
         tournament_size=FLAGS.tournament_size,
     )
+    @jit
     def _attn_fwd(Q, K, V, sm_scale, M, Out,  #
                 stride_qz, stride_qh, stride_qm, stride_qk,  #
                 stride_kz, stride_kh, stride_kn, stride_kk,  #

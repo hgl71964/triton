@@ -387,7 +387,10 @@ def target_func(
     # mp
     queue,
 ):
-    # print('asm: ', id(asm))
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
     bin = fgk_CompiledKernel(so_path, metadata, asm)
     path = run_simulated_annealing(
         bin,
