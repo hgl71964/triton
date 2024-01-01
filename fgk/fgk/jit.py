@@ -4,6 +4,7 @@ from triton.common.backend import get_backend, get_cuda_version_key
 
 from fgk.simulated_annealing import run_simulated_annealing, launch_simulated_annealing
 from fgk.genetic_algorithm import run_genetic_algorithm
+from fgk.selection import run_selection
 
 from fgk.compiler import compile as fgk_compile
 from fgk.compiler import CompiledKernel as fgk_CompiledKernel
@@ -64,6 +65,7 @@ class ASMJITFunction(JITFunction):
         ret_ptr = get_special_arg("ret_ptr")
         test_inputs = get_special_arg("test_inputs")
         test_outputs = get_special_arg("test_outputs")
+        load_dir = get_special_arg("load_dir")
 
         # Bind the remaining arguments to `fn`.
         bound_args = self.signature.bind(*args, **kwargs)
@@ -202,39 +204,59 @@ class ASMJITFunction(JITFunction):
                 debug=self.debug,
                 device_type=device_type,
             )
-            bin = launch_simulated_annealing(
-                so_path,
-                metadata,
-                asm,
-                args,
-                sig_key,
-                non_constexpr_arg_values,
-                ret_ptr,
-                test_inputs,
-                test_outputs,
-                grid_0,
-                grid_1,
-                grid_2,
-                stream,  #
-                CompiledKernel.launch_enter_hook,
-                CompiledKernel.launch_exit_hook,  # 
-                # algo
-                self.sa_runs,
-                1,
-                self.max_iterations,
-                self.temperature,
-                self.cooling_rate,
-                self.policy,
-                self.noise_factor,
-                n_test_samples=self.n_test_samples,
-                seed=self.seed,
-                total_flops=self.total_flops,
-                save_suffix=self.save_suffix,
-                save_dir=self.save_dir,
-                warmup=100,
-                rep=100,
-            )
-            bin = fgk_CompiledKernel(so_path, metadata, asm)
+            if load_dir is None:
+                bin = launch_simulated_annealing(
+                    so_path,
+                    metadata,
+                    asm,
+                    args,
+                    sig_key,
+                    non_constexpr_arg_values,
+                    ret_ptr,
+                    test_inputs,
+                    test_outputs,
+                    grid_0,
+                    grid_1,
+                    grid_2,
+                    stream,  #
+                    CompiledKernel.launch_enter_hook,
+                    CompiledKernel.launch_exit_hook,  # 
+                    # algo
+                    self.sa_runs,
+                    1,
+                    self.max_iterations,
+                    self.temperature,
+                    self.cooling_rate,
+                    self.policy,
+                    self.noise_factor,
+                    n_test_samples=self.n_test_samples,
+                    seed=self.seed,
+                    total_flops=self.total_flops,
+                    save_suffix=self.save_suffix,
+                    save_dir=self.save_dir,
+                    warmup=100,
+                    rep=100,
+                )
+            else:
+                bin = run_selection(
+                    so_path,
+                    metadata,
+                    asm,
+                    args,
+                    sig_key,
+                    non_constexpr_arg_values,
+                    ret_ptr,
+                    test_inputs,
+                    test_outputs,
+                    grid_0,
+                    grid_1,
+                    grid_2,
+                    stream,  #
+                    CompiledKernel.launch_enter_hook,
+                    CompiledKernel.launch_exit_hook,  # 
+                    cubin_dir_path=load_dir,
+                    n_test_samples=self.n_test_samples,
+                )
             self.search_cache[device][key] = bin
 
         bin = self.search_cache[device][key]

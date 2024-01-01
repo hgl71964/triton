@@ -174,7 +174,6 @@ class MutationEngine:
             print(f'Assemble failed: {e}')
             assemble_ok = False
 
-        ## XXX NOT test here to allow possible intermediate incorrect results
         # BENCH
         fn = lambda: self.bin.c_wrapper(
             self.grid_0,

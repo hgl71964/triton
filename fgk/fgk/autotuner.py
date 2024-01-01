@@ -142,6 +142,7 @@ class Autotuner(TritonAutotuner):
             ret_ptr = self.ret_ptr
         test_inputs = get_special_arg("test_inputs")
         test_outputs = get_special_arg("test_outputs")
+        load_dir = get_special_arg("load_dir")
         if ret_ptr is None:  # NOTE: if ret_ptr is not None, we use it as the output test
             assert test_inputs is not None and test_outputs is not None, f'either ret_ptr or test_inputs and test_outputs must be provided for testing'
 
@@ -187,6 +188,7 @@ class Autotuner(TritonAutotuner):
             ret_ptr=ret_ptr,
             test_inputs=test_inputs,
             test_outputs=test_outputs,
+            load_dir=load_dir,
             **kwargs,
             **config.kwargs,
         )

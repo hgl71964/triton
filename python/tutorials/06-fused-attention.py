@@ -11,9 +11,6 @@ Extra Credits:
 
 """
 
-import setproctitle
-setproctitle.setproctitle('hey guys')
-
 import pytest
 import torch
 
@@ -447,9 +444,12 @@ class _attention(torch.autograd.Function):
         assert Lq == Lk and Lk == Lv
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
+        # BLOCK_M = 128
+        # BLOCK_N = 64 if Lk <= 64 else 32
+        # num_stages = 4 if Lk <= 64 else 3
         BLOCK_M = 128
-        BLOCK_N = 64 if Lk <= 64 else 32
-        num_stages = 4 if Lk <= 64 else 3
+        BLOCK_N = 64
+        num_stages = 2
         num_warps = 4
         stage = 3 if causal else 1
         # Tuning for H100
@@ -572,10 +572,13 @@ try:
     from flash_attn.flash_attn_interface import \
         flash_attn_qkvpacked_func as flash_attn_func
     HAS_FLASH = True
+    if torch.cuda.get_device_capability()[0] < 8:
+        HAS_FLASH = False
 except BaseException:
     HAS_FLASH = False
 
-TORCH_HAS_FP8 = hasattr(torch, 'float8_e5m2')
+# TORCH_HAS_FP8 = hasattr(torch, 'float8_e5m2')
+TORCH_HAS_FP8 = False
 
 print(f"use flash: {HAS_FLASH}; use fp8: {TORCH_HAS_FP8}")
 
@@ -610,7 +613,7 @@ for mode in ["fwd", "bwd"]:
 @triton.testing.perf_report(configs)
 def bench_flash_attention(BATCH, H, N_CTX, D_HEAD, causal, mode, provider, dtype=torch.float16, device="cuda"):
     assert mode in ["fwd", "bwd"]
-    warmup = 25
+    warmup = 100
     rep = 100
     if provider == "triton":
         q = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
