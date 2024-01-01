@@ -37,7 +37,8 @@ import torch
 import triton
 import triton.language as tl
 
-from fgk.jit import search
+from fgk.jit import search, jit
+from fgk.autotuner import autotune as fgk_autotune
 
 try:
     # This is https://github.com/NVIDIA/apex, NOT the apex on PyPi, so it
@@ -387,6 +388,56 @@ def test_layer_norm(M, N, dtype, eps=1e-5, device='cuda'):
     assert torch.allclose(db_tri, db_ref, atol=1e-2, rtol=0)
     assert torch.allclose(dw_tri, dw_ref, atol=1e-2, rtol=0)
 
+@jit
+def _layer_norm_fwd_fused_search(
+    X,  # pointer to the input
+    Y,  # pointer to the output
+    W,  # pointer to the weights
+    B,  # pointer to the biases
+    Mean,  # pointer to the mean
+    Rstd,  # pointer to the 1/std
+    stride,  # how much to increase the pointer when moving by 1 row
+    N,  # number of columns in X
+    eps,  # epsilon to avoid division by zero
+    BLOCK_SIZE: tl.constexpr,
+):
+    # Map the program id to the row of X and Y it should compute.
+    row = tl.program_id(0)
+    Y += row * stride
+    X += row * stride
+    # Compute mean
+    mean = 0
+    _mean = tl.zeros([BLOCK_SIZE], dtype=tl.float32)
+    for off in range(0, N, BLOCK_SIZE):
+        cols = off + tl.arange(0, BLOCK_SIZE)
+        a = tl.load(X + cols, mask=cols < N, other=0.).to(tl.float32)
+        _mean += a
+    mean = tl.sum(_mean, axis=0) / N
+    # Compute variance
+    _var = tl.zeros([BLOCK_SIZE], dtype=tl.float32)
+    for off in range(0, N, BLOCK_SIZE):
+        cols = off + tl.arange(0, BLOCK_SIZE)
+        x = tl.load(X + cols, mask=cols < N, other=0.).to(tl.float32)
+        x = tl.where(cols < N, x - mean, 0.)
+        _var += x * x
+    var = tl.sum(_var, axis=0) / N
+    rstd = 1 / tl.sqrt(var + eps)
+    # Write mean / rstd
+    tl.store(Mean + row, mean)
+    tl.store(Rstd + row, rstd)
+    # Normalize and apply linear transformation
+    for off in range(0, N, BLOCK_SIZE):
+        cols = off + tl.arange(0, BLOCK_SIZE)
+        mask = cols < N
+        w = tl.load(W + cols, mask=mask)
+        b = tl.load(B + cols, mask=mask)
+        x = tl.load(X + cols, mask=mask, other=0.).to(tl.float32)
+        x_hat = (x - mean) * rstd
+        y = x_hat * w + b
+        # Write output
+        tl.store(Y + cols, y, mask=mask)
+
+
 def ln_forward(x, w_shape, weight, bias, eps, kernel):
     y = torch.empty_like(x)
     # reshape input data into 2D tensor
@@ -415,7 +466,12 @@ def ln_forward(x, w_shape, weight, bias, eps, kernel):
         eps,  #
         BLOCK_SIZE=BLOCK_SIZE,
         num_warps=num_warps,
-        num_ctas=1)
+        num_ctas=1,
+
+        # gh512
+        ret_ptr=1,
+        load_dir='data/Quadro_RTX_8000/layernorm',
+        )
     return y
 
 def main(_):
@@ -429,60 +485,6 @@ def main(_):
     N= FLAGS.wl
     dtype = torch.float16
     eps=1e-5
-
-    @search(
-        total_flops=1e9,  # just to make it working
-        seed=FLAGS.seed,
-        save_suffix=str(N),
-        save_dir='layernorm',
-    )
-    def _layer_norm_fwd_fused_search(
-        X,  # pointer to the input
-        Y,  # pointer to the output
-        W,  # pointer to the weights
-        B,  # pointer to the biases
-        Mean,  # pointer to the mean
-        Rstd,  # pointer to the 1/std
-        stride,  # how much to increase the pointer when moving by 1 row
-        N,  # number of columns in X
-        eps,  # epsilon to avoid division by zero
-        BLOCK_SIZE: tl.constexpr,
-    ):
-        # Map the program id to the row of X and Y it should compute.
-        row = tl.program_id(0)
-        Y += row * stride
-        X += row * stride
-        # Compute mean
-        mean = 0
-        _mean = tl.zeros([BLOCK_SIZE], dtype=tl.float32)
-        for off in range(0, N, BLOCK_SIZE):
-            cols = off + tl.arange(0, BLOCK_SIZE)
-            a = tl.load(X + cols, mask=cols < N, other=0.).to(tl.float32)
-            _mean += a
-        mean = tl.sum(_mean, axis=0) / N
-        # Compute variance
-        _var = tl.zeros([BLOCK_SIZE], dtype=tl.float32)
-        for off in range(0, N, BLOCK_SIZE):
-            cols = off + tl.arange(0, BLOCK_SIZE)
-            x = tl.load(X + cols, mask=cols < N, other=0.).to(tl.float32)
-            x = tl.where(cols < N, x - mean, 0.)
-            _var += x * x
-        var = tl.sum(_var, axis=0) / N
-        rstd = 1 / tl.sqrt(var + eps)
-        # Write mean / rstd
-        tl.store(Mean + row, mean)
-        tl.store(Rstd + row, rstd)
-        # Normalize and apply linear transformation
-        for off in range(0, N, BLOCK_SIZE):
-            cols = off + tl.arange(0, BLOCK_SIZE)
-            mask = cols < N
-            w = tl.load(W + cols, mask=mask)
-            b = tl.load(B + cols, mask=mask)
-            x = tl.load(X + cols, mask=mask, other=0.).to(tl.float32)
-            x_hat = (x - mean) * rstd
-            y = x_hat * w + b
-            # Write output
-            tl.store(Y + cols, y, mask=mask)
 
     x_shape = (M, N)
     w_shape = (x_shape[-1], )

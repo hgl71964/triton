@@ -1,3 +1,5 @@
+from collections import defaultdict, namedtuple
+
 from triton.runtime.jit import T, JITFunction, KernelArg, get_current_device, set_current_device, get_cuda_stream
 from triton.compiler.compiler import CompiledKernel, compile, get_arch_default_num_stages, get_arch_default_num_warps
 from triton.common.backend import get_backend, get_cuda_version_key
@@ -37,6 +39,16 @@ def jit(
 
 
 class ASMJITFunction(JITFunction):
+
+    def __init__(self,
+                 fn,
+                 version=None,
+                 do_not_specialize=None,
+                 debug=None,
+                 noinline=None):
+        super().__init__(fn, version, do_not_specialize, debug, noinline)
+        self.search_cache = defaultdict(dict)
+        self.n_test_samples = 100
 
     def search(self, *args, **kwargs):
 
@@ -279,6 +291,9 @@ class ASMJITFunction(JITFunction):
                 *bin.assemble_tensormap_to_arg(non_constexpr_arg_values),
             )
         return bin
+
+    def run(self, *args, **kwargs):
+        return self.search(*args, **kwargs)
 
     # execute triton's default run
     def triton_run(self, *args, **kwargs):

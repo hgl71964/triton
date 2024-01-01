@@ -69,8 +69,6 @@ class Autotuner(TritonAutotuner):
         self.tournament_size = kwargs.get('tournament_size', 5)
 
         # at this time, fn has been init, so we overwrite the default args
-        self.fn.search_cache = defaultdict(dict)
-
         self.fn.total_flops = self.total_flops
         self.fn.seed = self.seed
         self.fn.save_suffix = self.save_suffix
