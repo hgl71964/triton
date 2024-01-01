@@ -49,7 +49,8 @@ def save_data(
     file_name += save_suffix
     file_name += '.pkl'
 
-    full_path = f'{dir_path}/{file_name}'
+    # full_path = f'{dir_path}/{file_name}'
+    full_path = os.path.join(dir_path, file_name)
     with open(full_path, 'wb') as f:
         pickle.dump(data, f)
     return full_path

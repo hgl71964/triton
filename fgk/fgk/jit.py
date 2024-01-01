@@ -33,22 +33,34 @@ def jit(
 
     if fn is not None:
         return decorator(fn)
-
     else:
         return decorator
 
 
 class ASMJITFunction(JITFunction):
 
-    def __init__(self,
-                 fn,
-                 version=None,
-                 do_not_specialize=None,
-                 debug=None,
-                 noinline=None):
+    def __init__(
+        self,
+        fn,
+        version=None,
+        do_not_specialize=None,
+        debug=None,
+        noinline=None,
+    ):
         super().__init__(fn, version, do_not_specialize, debug, noinline)
+
         self.search_cache = defaultdict(dict)
+
+        self.max_iterations = 1000
+        self.temperature = 0.4
+        self.cooling_rate = 0.003
+        self.policy = 'single'
+        self.noise_factor = 0.0
         self.n_test_samples = 100
+        self.seed = 0
+        self.save_dir = 'tmp'
+        self.total_flops = 1e9
+        self.save_suffix = ''
 
     def search(self, *args, **kwargs):
 
@@ -217,16 +229,44 @@ class ASMJITFunction(JITFunction):
                 device_type=device_type,
             )
             if load_dir is None:
-                bin = launch_simulated_annealing(
-                    so_path,
-                    metadata,
-                    asm,
+                # bin = launch_simulated_annealing(
+                #     so_path,
+                #     metadata,
+                #     asm,
+                #     args,
+                #     sig_key,
+                #     non_constexpr_arg_values,
+                #     ret_ptr,
+                #     test_inputs,
+                #     test_outputs,
+                #     grid_0,
+                #     grid_1,
+                #     grid_2,
+                #     stream,  #
+                #     CompiledKernel.launch_enter_hook,
+                #     CompiledKernel.launch_exit_hook,  #
+                #     # algo
+                #     self.sa_runs,
+                #     1,
+                #     self.max_iterations,
+                #     self.temperature,
+                #     self.cooling_rate,
+                #     self.policy,
+                #     self.noise_factor,
+                #     n_test_samples=self.n_test_samples,
+                #     seed=self.seed,
+                #     total_flops=self.total_flops,
+                #     save_suffix=self.save_suffix,
+                #     save_dir=self.save_dir,
+                #     warmup=100,
+                #     rep=100,
+                # )
+                bin = fgk_CompiledKernel(so_path, metadata, asm)
+                run_simulated_annealing(
+                    bin,
                     args,
                     sig_key,
                     non_constexpr_arg_values,
-                    ret_ptr,
-                    test_inputs,
-                    test_outputs,
                     grid_0,
                     grid_1,
                     grid_2,
@@ -234,14 +274,12 @@ class ASMJITFunction(JITFunction):
                     CompiledKernel.launch_enter_hook,
                     CompiledKernel.launch_exit_hook,  # 
                     # algo
-                    self.sa_runs,
                     1,
                     self.max_iterations,
                     self.temperature,
                     self.cooling_rate,
                     self.policy,
                     self.noise_factor,
-                    n_test_samples=self.n_test_samples,
                     seed=self.seed,
                     total_flops=self.total_flops,
                     save_suffix=self.save_suffix,
