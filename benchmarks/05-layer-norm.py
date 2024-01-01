@@ -396,14 +396,6 @@ def ln_forward(x, w_shape, weight, bias, eps, kernel):
     M, N = x_arg.shape
     mean = torch.empty((M, ), dtype=torch.float32, device='cuda')
     rstd = torch.empty((M, ), dtype=torch.float32, device='cuda')
-    # Less than 64KB per feature: enqueue fused kernel
-    MAX_FUSED_SIZE = 65536 // x.element_size()
-    BLOCK_SIZE = min(MAX_FUSED_SIZE, triton.next_power_of_2(N))
-    if N > BLOCK_SIZE:
-        raise RuntimeError(
-            "This layer norm doesn't support feature dim >= 64KB.")
-    # heuristics for number of warps
-    num_warps = min(max(BLOCK_SIZE // 256, 1), 8)
     # enqueue kernel
     kernel[(M, )](  #
         x_arg,
@@ -415,9 +407,9 @@ def ln_forward(x, w_shape, weight, bias, eps, kernel):
         x_arg.stride(0),
         N,
         eps,  #
-        BLOCK_SIZE=BLOCK_SIZE,
-        num_warps=num_warps,
-        num_ctas=1,
+        # BLOCK_SIZE=BLOCK_SIZE,
+        # num_warps=num_warps,
+        # num_ctas=1,
 
         # gh512 (load and verify)
         # load_dir='data/Quadro_RTX_8000/tmp',
@@ -444,14 +436,24 @@ def main(_):
     bias = torch.rand(w_shape, dtype=dtype, device='cuda', requires_grad=True)
     x = -2.3 + 0.5 * torch.randn(x_shape, dtype=dtype, device='cuda')
 
+    # Less than 64KB per feature: enqueue fused kernel
+    MAX_FUSED_SIZE = 65536 // x.element_size()
+    BLOCK_SIZE = min(MAX_FUSED_SIZE, triton.next_power_of_2(N))
+    if N > BLOCK_SIZE:
+        raise RuntimeError(
+            "This layer norm doesn't support feature dim >= 64KB.")
+    # heuristics for number of warps
+    num_warps = min(max(BLOCK_SIZE // 256, 1), 8)
+
     @fgk_autotune(
        configs=[
-           triton.Config({}),
+           triton.Config({'BLOCK_SIZE': BLOCK_SIZE}, num_warps=num_warps, num_ctas=1,num_stages=None),
        ],
        key=['N'],
        seed=FLAGS.seed,
        save_dir=f'layernorm/{N}',
        ret_ptr=1,
+       total_flops=M*N*9,
     )
     @jit
     def _layer_norm_fwd_fused_search(
