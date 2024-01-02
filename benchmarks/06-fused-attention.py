@@ -37,6 +37,7 @@ flags.DEFINE_integer("flash", 0, "whether to use flash attention")
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("test_sample", 10, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
+flags.DEFINE_integer("load", 1, "whether to load")
 # sa
 flags.DEFINE_integer("max_iterations", 1000, "")
 flags.DEFINE_float("temperature", 0.4, "")
@@ -477,6 +478,10 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
         STAGE=stage,  #
         # num_warps=num_warps,  #
         # num_stages=num_stages  #
+
+        # gh512
+        # load_dir=f'data/Quadro_RTX_8000/flash_attn/{N}' if bool(FLAGS.load) else None,
+        # load_dir=f'data/Quadro_RTX_8000/flash_attn'
     )
     return o
 
@@ -518,10 +523,8 @@ def main(_):
         # workload
         total_flops=total_flops,
         seed=FLAGS.seed,
-        # save_suffix=str(N_CTX)+"_"+str(dtype).replace('.', '_'),
         save_suffix=str(N_CTX),
-        # save_dir='flash_attn',
-        save_dir='tmp',
+        save_dir=f'flash_attn/{N_CTX}',
 
         # sa
         sa_runs=100,
