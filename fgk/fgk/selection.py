@@ -73,10 +73,15 @@ def run_selection(
             logger.warning(f'run {run} verify failed: {e}')
             ok = False
 
+        final_perf = data['final_perf']
+        init_perf = data['init_perf']
+        improvement = (final_perf - init_perf) / init_perf
         if ok:
-            perf = data['final_perf']
-            logger.info(f'run {run} verified ok; perf: {perf:.2f}')
+            logger.info(f'run {run} verified ok; final perf: {final_perf:.2f}; init perf: {init_perf:.2f}; improvement: {improvement*100:.2f}%')
             break
+        else:
+            logger.warning(f'run {run} verified failed; final perf: {final_perf:.2f}; init perf: {init_perf:.2f}; improvement: {improvement*100:.2f}%')
+
 
     opt_asm = {
         'cubin': cubin,

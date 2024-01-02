@@ -59,6 +59,7 @@ flags.DEFINE_string("default_out_path", "data", "output dir")
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("test_sample", 10, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
+flags.DEFINE_integer("load", 1, "whether to load")
 # sa
 flags.DEFINE_integer("max_iterations", 1000, "")
 flags.DEFINE_float("temperature", 0.4, "")
@@ -412,8 +413,8 @@ def ln_forward(x, w_shape, weight, bias, eps, kernel):
         # num_ctas=1,
 
         # gh512 (load and verify)
-        # load_dir='data/Quadro_RTX_8000/tmp',
-        )
+        load_dir=f'data/Quadro_RTX_8000/layernorm/{N}' if bool(FLAGS.load) else None,
+    )
     return y
 
 def main(_):
