@@ -14,10 +14,10 @@ def get_mutatable_ops(cc):
     elif cc == (7, 5):
         memory_ops = [
             # load insts
-            'LDG', 'LDS', 'LDSM', 'LDL', 'LD',
+            'LDG', 'LDS', 'LDSM', # 'LDL', 'LD',
 
             # store insts
-            'STG', 'STS', 'STL', 'ST',
+            'STG', # 'STS', 'STL', 'ST',
         ]
         ban_ops = [
             'ERRBAR',

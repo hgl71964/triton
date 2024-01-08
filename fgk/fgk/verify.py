@@ -221,6 +221,7 @@ def test_via_cubin(
     cubin,
     n_test_samples,
 ):
+    # return True
     bin = fgk_CompiledKernel(so_path, metadata, asm)
 
     # use hint to generate test cases

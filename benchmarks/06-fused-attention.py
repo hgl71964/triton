@@ -481,7 +481,7 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
 
         # gh512
         # load_dir=f'data/Quadro_RTX_8000/flash_attn/{N}' if bool(FLAGS.load) else None,
-        # load_dir=f'data/Quadro_RTX_8000/flash_attn'
+        # load_dir=f'data/Quadro_RTX_8000/flash_attn/8192'
     )
     return o
 

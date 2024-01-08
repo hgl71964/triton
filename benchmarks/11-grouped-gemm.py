@@ -124,6 +124,26 @@ def main(_):
         group_A.append(A)
         group_B.append(B)
 
+    # test_inputs = []
+    # test_outputs = []
+    # for _ in range(FLAGS.test_sample):
+    #     tmp_group_A = []
+    #     tmp_group_B = []
+    #     tmp_group_C = []
+    #     for i in range(group_size):
+    #         M = group_m[i]
+    #         N = group_n[i]
+    #         K = group_k[i]
+    #         A = torch.rand((M, K), device="cuda", dtype=torch.float16)
+    #         B = torch.rand((K, N), device="cuda", dtype=torch.float16)
+    #         C = A@B
+    #         tmp_group_A.append(A)
+    #         tmp_group_B.append(B)
+    #         tmp_group_C.append(C)
+    #
+    #     test_inputs.append((tmp_group_A, tmp_group_B))
+    #     test_outputs.append(tmp_group_C)
+
 
     # @search(
     #     # workload
@@ -271,6 +291,10 @@ def main(_):
             d_g_sizes,
             d_g_lds,
             group_size,
+
+            # gh512
+            # test_inputs=test_inputs,
+            # test_outputs=test_outputs,
         )
 
         return group_C
