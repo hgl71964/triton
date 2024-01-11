@@ -1,6 +1,8 @@
 import os
 import pickle
 
+import torch
+
 from fgk.compiler import CompiledKernel as fgk_CompiledKernel
 from fgk.verify import test_via_cubin
 from fgk.utils.logger import get_logger
@@ -73,6 +75,7 @@ def run_selection(
             logger.warning(f'run {run} verify failed: {e}')
             ok = False
 
+        torch.cuda.empty_cache()  # free test memory
         final_perf = data['final_perf']
         init_perf = data['init_perf']
         improvement = (final_perf - init_perf) / init_perf

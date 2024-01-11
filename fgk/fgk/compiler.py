@@ -431,7 +431,7 @@ class CompiledKernel:
         mod, func, n_regs, n_spills = fn_load_binary(self.metadata["name"],
                                                      self.asm[bin_path],
                                                      self.shared, device)
-        print(f'[FGKCompiledKernel] loading {id(func)}')
+        # print(f'[FGKCompiledKernel] loading {id(func)}')
 
         self.n_spills = n_spills
         self.n_regs = n_regs

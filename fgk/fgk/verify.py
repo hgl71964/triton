@@ -116,13 +116,6 @@ def e2e_test(
         else:
             oks.append(False)
 
-    passes = sum(oks)
-    total = len(oks)
-    if np.all(oks):
-        logger.info(f"✅ kernel verified for {total} test samples")
-    else:
-        logger.error(f"❌ kernel fail; only {passes}/{total} passes")
-
     return oks
 
 
@@ -226,35 +219,48 @@ def test_via_cubin(
 
     # use hint to generate test cases
     if ret_ptr is not None:
-        test_samples = gen_test_samples(
-            bin,
-            non_constexpr_arg_values,
-            grid_0,
-            grid_1,
-            grid_2,
-            stream,
-            enter_hook,
-            exit_hook,
-            n_test_samples,
-            ret_ptr,
-        )
-        opt_asm = {
-            'cubin': cubin,
-        }
-        opt_bin = fgk_CompiledKernel(so_path, metadata, opt_asm)
+        okss = []
+        for _ in range(n_test_samples):
+            test_samples = gen_test_samples(
+                bin,
+                non_constexpr_arg_values,
+                grid_0,
+                grid_1,
+                grid_2,
+                stream,
+                enter_hook,
+                exit_hook,
+                # n_test_samples,
+                1,
+                ret_ptr,
+            )
+            opt_asm = {
+                'cubin': cubin,
+            }
+            opt_bin = fgk_CompiledKernel(so_path, metadata, opt_asm)
 
-        oks = e2e_test(
-            opt_bin,
-            grid_0,
-            grid_1,
-            grid_2,
-            stream,
-            enter_hook,
-            exit_hook,
-            ret_ptr,
-            test_samples,
-        )
-        all_ok = np.all(oks)
+            oks = e2e_test(
+                opt_bin,
+                grid_0,
+                grid_1,
+                grid_2,
+                stream,
+                enter_hook,
+                exit_hook,
+                ret_ptr,
+                test_samples,
+            )
+            okss.extend(oks)
+            torch.cuda.empty_cache()  # free test memory for one test
+
+        passes = sum(okss)
+        total = len(okss)
+        if np.all(okss):
+            logger.info(f"✅ kernel verified for {total} test samples")
+        else:
+            logger.error(f"❌ kernel fail; only {passes}/{total} passes")
+
+        all_ok = np.all(okss)
         return all_ok
 
     else:
