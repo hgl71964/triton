@@ -182,9 +182,10 @@ def genetic_algorithm(
     mutation_rate,
     eng: MutationEngine,
 ):
-    cmp = lambda x: x if x is not None else float("-inf")
-    population = create_population(population_size, init_sample)
+    best_sample = init_sample
+    best_perf = init_perf
 
+    population = create_population(population_size, init_sample)
     for generation in range(generations):
         selected_population = tournament_selection(
             population,
@@ -192,11 +193,19 @@ def genetic_algorithm(
             eng,
         )
 
-        perfs = [x.perf for x in selected_population]
+        # stats
+        tmp_best_perf = float("-inf")
+        for sample in selected_population:
+            if sample.perf > tmp_best_perf:
+                tmp_best_perf = sample.perf
+            if sample.perf > best_perf:
+                best_sample = sample
+                best_perf = sample.perf
         logger.info(
-            f'generation {generation}: best perf: {max(perfs, key=cmp):.2f}; init perf: {init_perf:.2f}'
+            f'generation {generation}: best population perf: {tmp_best_perf:.2f}; best perf: {best_perf:.2f}; init perf: {init_perf:.2f}'
         )
 
+        # crossover
         new_population = []
         while len(new_population) < population_size:
             parent1, parent2 = random.sample(selected_population, 2)
@@ -210,8 +219,7 @@ def genetic_algorithm(
 
         population = new_population
 
-    best_individual = max(population, key=eng.get_perf)
-    return best_individual
+    return best_sample
 
 
 def run_genetic_algorithm(
@@ -283,7 +291,7 @@ def run_genetic_algorithm(
     # ===== start =====
     sample = CtrlSample(eng.kernel_section, eng)
     sample.get_mutable()
-    init_perf = max([eng.get_init_perf() for _ in range(3)])
+    init_perf = max([eng.get_init_perf() for _ in range(5)])
     logger.info(f'init perf: {init_perf:.2f}; dims: {sample.dims}')
     if init_perf < 0:
         raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
