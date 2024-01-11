@@ -103,9 +103,6 @@ class CtrlSample(Sample):
     """
 
     def get_mutable(self) -> list[int]:
-        if self.dims is not None:
-            return self.candidates
-
         lines = []
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
@@ -119,12 +116,22 @@ class CtrlSample(Sample):
                 if yield_flag is None or stall_count is None:
                     continue
 
-                if yield_flag == 'Y':
-                    self.candidates.append(i)
-                    lines.append(line)
-                elif int(stall_count[-2]) > 3:
-                    self.candidates.append(i)
-                    lines.append(line)
+                # 1. existing yield flag
+                # if yield_flag == 'Y':
+                #     self.candidates.append(i)
+                #     lines.append(line)
+                # elif int(stall_count[-2]) > 3:
+                #     self.candidates.append(i)
+                #     lines.append(line)
+
+                # 2. consider all flag
+                # TODO: can filter out e.g. NOP?
+                self.candidates.append(i)
+                lines.append(line)
+
+        # DEBUG
+        # for l in lines:
+        #     print(l)
 
         # dimension of the optimization problem
         self.dims = len(self.candidates)

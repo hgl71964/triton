@@ -413,7 +413,7 @@ def ln_forward(x, w_shape, weight, bias, eps, kernel):
         # num_ctas=1,
 
         # gh512 (load and verify)
-        load_dir=f'data/Quadro_RTX_8000/layernorm/{N}' if bool(FLAGS.load) else None,
+        # load_dir=f'data/Quadro_RTX_8000/layernorm/{N}' if bool(FLAGS.load) else None,
     )
     return y
 

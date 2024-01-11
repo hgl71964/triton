@@ -74,15 +74,14 @@ def tournament_selection(population: list[Sample], tournament_size,
         best_individual = max(tournament, key=eng.get_perf)
         selected.append(best_individual)
 
-    # TODO what if all selected are invalid
+    # sanity check
     find = False
     for sample in selected:
         if sample.perf > 0:
             find = True
             break
-
     if not find:
-        print('all selected are invalid')
+        raise RuntimeError(f'all selected are invalid')
 
     return selected
 
@@ -114,12 +113,6 @@ def crossover(
     sample_ctr: Union[CtrlSample, GeneticSample],
     eng: MutationEngine,
 ):
-
-    # crossover_point = random.randint(0, len(parent1) - 1)
-    # child1 = parent1[:crossover_point] + parent2[crossover_point:]
-    # child2 = parent2[:crossover_point] + parent1[crossover_point:]
-    # return child1, child2
-
     n = parent1.dims
     crossover_point = random.randint(0, n - 1)
     crossover_action1 = parent1.actions[:crossover_point] + parent2.actions[
@@ -137,6 +130,7 @@ def crossover(
 
 def genetic_algorithm(
     init_sample,
+    init_perf,
     population_size,
     generations,
     tournament_size,
@@ -144,16 +138,20 @@ def genetic_algorithm(
     sample_ctr: Union[CtrlSample, GeneticSample],
     eng: MutationEngine,
 ):
+    cmp = lambda x: x if x is not None else float("-inf")
     population = create_population(population_size, init_sample, sample_ctr)
 
     for generation in range(generations):
-        selected_population = tournament_selection(population, tournament_size,
-                                                   eng)
+        selected_population = tournament_selection(
+            population,
+            tournament_size,
+            eng,
+        )
 
-        cmp = lambda x: x if x is not None else float("-inf")
         perfs = [x.perf for x in selected_population]
         logger.info(
-            f'generation {generation}: best perf: {max(perfs, key=cmp):.2f}')
+            f'generation {generation}: best perf: {max(perfs, key=cmp):.2f}; init perf: {init_perf:.2f}'
+        )
 
         new_population = []
         while len(new_population) < population_size:
@@ -242,16 +240,17 @@ def run_genetic_algorithm(
     # ===== start =====
     # sample = GeneticSample(eng.kernel_section, eng)
     sample = CtrlSample(eng.kernel_section, eng)
-    init_perf = eng.get_perf(sample)
-    logger.info(f'init perf: {init_perf:.2f}')
+    sample.get_mutable()
+    init_perf = max([eng.get_init_perf() for _ in range(5)])
+    logger.info(f'init perf: {init_perf:.2f}; dims: {sample.dims}')
     if init_perf < 0:
-        logger.critical(f'init perf {init_perf} < 0; not valid cubin')
-        # TODO handle this error, exit gracefully?
-        return bin
+        # logger.critical(f'init perf {init_perf} < 0; not valid cubin')
+        raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
     _t1 = time.perf_counter()
     best_sample = genetic_algorithm(
         sample,
+        init_perf,
         population_size,
         generations,
         tournament_size,
@@ -276,9 +275,6 @@ def run_genetic_algorithm(
     logger.info(
         f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
 
-    # ===== test =====
-    # TODO
-
     # ===== save =====
     save_data(
         bin,
@@ -293,4 +289,3 @@ def run_genetic_algorithm(
         save_dir,
         algo='ga',
     )
-    return bin

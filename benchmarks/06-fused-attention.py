@@ -482,7 +482,7 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
         # gh512
         # load_dir=f'data/Quadro_RTX_8000/flash_attn/{N}' if bool(FLAGS.load) else None,
         # load_dir=f'data/Quadro_RTX_8000/flash_attn/8192'
-        load_dir=f'data/NVIDIA_A100_80GB_PCIe/flash_attn/{FLAGS.ctx}',
+        # load_dir=f'data/NVIDIA_A100_80GB_PCIe/flash_attn/{FLAGS.ctx}',
     )
     return o
 
@@ -525,7 +525,7 @@ def main(_):
         total_flops=total_flops,
         seed=FLAGS.seed,
         save_suffix=str(N_CTX),
-        save_dir=f'flash_attn/{N_CTX}',
+        save_dir=f'flash_attn_yield/{N_CTX}',
 
         # sa
         sa_runs=100,
