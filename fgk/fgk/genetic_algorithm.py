@@ -187,8 +187,20 @@ def genetic_algorithm(
 
     population = create_population(population_size, init_sample)
     for generation in range(generations):
+        # crossover
+        new_population = []
+        while len(new_population) < population_size:
+            parent1, parent2 = random.sample(population, 2)
+            child1, child2 = crossover(
+                parent1,
+                parent2,
+                mutation_rate,
+                eng,
+            )
+            new_population.extend([child1, child2])
+
         selected_population = tournament_selection(
-            population,
+            new_population,
             tournament_size,
             eng,
         )
@@ -204,20 +216,7 @@ def genetic_algorithm(
         logger.info(
             f'generation {generation}: best population perf: {tmp_best_perf:.2f}; best perf: {best_perf:.2f}; init perf: {init_perf:.2f}'
         )
-
-        # crossover
-        new_population = []
-        while len(new_population) < population_size:
-            parent1, parent2 = random.sample(selected_population, 2)
-            child1, child2 = crossover(
-                parent1,
-                parent2,
-                mutation_rate,
-                eng,
-            )
-            new_population.extend([child1, child2])
-
-        population = new_population
+        population = selected_population
 
     return best_sample
 
