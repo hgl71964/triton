@@ -23,6 +23,17 @@ logger = get_logger(__name__)
 class CtrlSample(Sample):
     """ only Mutate the control code """
 
+    def __eq__(self, other):
+        if not isinstance(other, CtrlSample):
+            return False
+        for i in range(len(self.actions)):
+            if self.actions[i] != other.actions[i]:
+                return False
+        return True
+
+    def __hash__(self):
+        return hash(tuple(self.actions))
+
     def get_mutable(self) -> list[int]:
         lines = []
         self.actions = []
@@ -119,18 +130,17 @@ def tournament_selection(
     selected = []
     for _ in range(len(population)):
         tournament = random.sample(population, tournament_size)
-        best_individual = max(tournament, key=eng.get_perf)
+        best = -1
+        best_perf = -float('inf')
+        for i, sample in enumerate(tournament):
+            perf = eng.get_perf(sample)
+            sample.perf = perf
+            if perf > best_perf:
+                best = i
+                best_perf = perf
+
+        best_individual = tournament[best]
         selected.append(best_individual)
-
-    # sanity check
-    find = False
-    for sample in selected:
-        if sample.perf > 0:
-            find = True
-            break
-    if not find:
-        raise RuntimeError(f'all selected are invalid')
-
     return selected
 
 
@@ -289,7 +299,7 @@ def run_genetic_algorithm(
 
     # ===== start =====
     sample = CtrlSample(eng.kernel_section, eng)
-    sample.get_mutable()
+    sample.get_mutable()  # populate dims
     init_perf = max([eng.get_init_perf() for _ in range(5)])
     logger.info(f'init perf: {init_perf:.2f}; dims: {sample.dims}')
     if init_perf < 0:
