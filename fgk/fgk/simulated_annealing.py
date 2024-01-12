@@ -107,15 +107,17 @@ def simulated_annealing(
                 new_fitness = 0
         new_solution.perf = new_fitness  # setter
 
-        logger.info(
-            f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature:.2f}'
-        )
-
         if new_fitness < 0:
             # once illegal memory access, subsequent call may fail
             # so we early stop here
+            logger.warning(
+                f'early stop at iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature:.2f}'
+            )
             break
 
+        logger.info(
+            f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature:.2f}'
+        )
         if acceptance_probability(current_fitness, new_fitness, temperature,
                                   noise_factor) > random.random():
             current_solution = new_solution
