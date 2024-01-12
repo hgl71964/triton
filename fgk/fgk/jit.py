@@ -262,47 +262,28 @@ class ASMJITFunction(JITFunction):
                 #     rep=100,
                 # )
                 bin = fgk_CompiledKernel(so_path, metadata, asm)
-                # run_simulated_annealing(
-                #     bin,
-                #     args,
-                #     sig_key,
-                #     non_constexpr_arg_values,
-                #     grid_0,
-                #     grid_1,
-                #     grid_2,
-                #     stream,  #
-                #     CompiledKernel.launch_enter_hook,
-                #     CompiledKernel.launch_exit_hook,  #
-                #     # algo
-                #     1,
-                #     self.max_iterations,
-                #     self.temperature,
-                #     self.cooling_rate,
-                #     self.policy,
-                #     self.noise_factor,
-                #     seed=self.seed,
-                #     total_flops=self.total_flops,
-                #     save_suffix=self.save_suffix,
-                #     save_dir=self.save_dir,
-                #     warmup=100,
-                #     rep=100,
-                # )
-                run_genetic_algorithm(
+                run_simulated_annealing(
                     bin,
+                    so_path,
+                    metadata,
+                    asm,
+                    ret_ptr,
                     args,
                     sig_key,
                     non_constexpr_arg_values,
                     grid_0,
                     grid_1,
                     grid_2,
-                    stream,
+                    stream,  #
                     CompiledKernel.launch_enter_hook,
-                    CompiledKernel.launch_exit_hook,
+                    CompiledKernel.launch_exit_hook,  #
                     # algo
-                    self.population_size,
-                    self.generations,
-                    self.tournament_size,
-                    self.mutation_rate,
+                    1,
+                    self.max_iterations,
+                    self.temperature,
+                    self.cooling_rate,
+                    self.policy,
+                    self.noise_factor,
                     seed=self.seed,
                     total_flops=self.total_flops,
                     save_suffix=self.save_suffix,
@@ -310,6 +291,29 @@ class ASMJITFunction(JITFunction):
                     warmup=100,
                     rep=100,
                 )
+                # run_genetic_algorithm(
+                #     bin,
+                #     args,
+                #     sig_key,
+                #     non_constexpr_arg_values,
+                #     grid_0,
+                #     grid_1,
+                #     grid_2,
+                #     stream,
+                #     CompiledKernel.launch_enter_hook,
+                #     CompiledKernel.launch_exit_hook,
+                #     # algo
+                #     self.population_size,
+                #     self.generations,
+                #     self.tournament_size,
+                #     self.mutation_rate,
+                #     seed=self.seed,
+                #     total_flops=self.total_flops,
+                #     save_suffix=self.save_suffix,
+                #     save_dir=self.save_dir,
+                #     warmup=100,
+                #     rep=100,
+                # )
             else:
                 bin = run_selection(
                     so_path,

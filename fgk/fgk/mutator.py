@@ -13,6 +13,9 @@ from triton.compiler.compiler import CompiledKernel
 from CuAsm.CuAsmParser import CuAsmParser
 
 from fgk.sample import Sample
+from fgk.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class MutationEngine:
@@ -225,6 +228,7 @@ class MutationEngine:
         # buffer IO
         cap = CuAsmParser()
         assemble_ok = True
+        cubin = None
         try:
             cap.parse_from_buffer(mutated_sass)
             cubin = cap.dump_cubin()
@@ -232,6 +236,7 @@ class MutationEngine:
         except Exception as e:
             print(f'Assemble failed: {e}')
             assemble_ok = False
+            cubin = None
 
         ## XXX NOT test here to allow possible intermediate incorrect results
         # BENCH
@@ -259,10 +264,11 @@ class MutationEngine:
                 ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
             except RuntimeError as run_err:
                 # likely a cuda error
-                print(f'CUDA? Runtime Err: {run_err}')
+                logger.error(f'CUDA? Runtime Err: {run_err}')
                 ms = -1
+                cubin = None
             except Exception as e:
-                print(f'Other error: {e}')
+                logger.error(f'Other error: {e}')
                 raise e
         else:
             ms = -1
@@ -271,13 +277,11 @@ class MutationEngine:
 
         if total_flops is not None:
             tflops = total_flops / ms * 1e-9
-            sample.perf = tflops
             # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
-            return tflops
+            return tflops, cubin
 
         # print(f'ms: {ms:.3f};')
-        sample.perf = -ms
-        return -ms
+        raise NotImplementedError()
 
     def assemble(self, sample: Sample):
         mutated_kernel = sample.kernel_section[self.kernel_start_line:]

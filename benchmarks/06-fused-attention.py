@@ -525,7 +525,7 @@ def main(_):
         total_flops=total_flops,
         seed=FLAGS.seed,
         save_suffix=str(N_CTX),
-        save_dir=f'flash_attn_yield/{N_CTX}',
+        save_dir=f'flash_attn/{N_CTX}',
 
         # sa
         sa_runs=100,

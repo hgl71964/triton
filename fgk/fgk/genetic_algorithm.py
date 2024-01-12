@@ -133,7 +133,7 @@ def tournament_selection(
         best = -1
         best_perf = -float('inf')
         for i, sample in enumerate(tournament):
-            perf = eng.get_perf(sample)
+            perf, _ = eng.get_perf(sample)
             sample.perf = perf
             if perf > best_perf:
                 best = i

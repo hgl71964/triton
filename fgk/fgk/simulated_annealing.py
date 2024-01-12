@@ -3,6 +3,7 @@ import math
 import random
 import tempfile
 import time
+from functools import partial
 from copy import deepcopy
 
 import multiprocessing
@@ -20,7 +21,7 @@ from fgk.utils.logger import get_logger
 from fgk.utils.record import save_data, read_data
 
 from fgk.compiler import CompiledKernel as fgk_CompiledKernel
-from fgk.verify import test_func
+from fgk.verify import test_func, test_via_cubin
 
 logger = get_logger(__name__)
 
@@ -90,6 +91,7 @@ def simulated_annealing(
     policy,
     noise_factor,
     eng: MutationEngine,
+    test_fn,
 ) -> SimulatedSample:
     current_solution = initial_solution
     current_fitness = init_fitness
@@ -99,11 +101,21 @@ def simulated_annealing(
 
     while temperature > 0.05 and cnt < max_iterations:
         new_solution = generate_neighbor(current_solution, n_choices, policy)
-        new_fitness = eng.get_perf(new_solution)
+        new_fitness, cubin = eng.get_perf(new_solution)
+        if new_fitness > 0:
+            if not test_fn(cubin, 2):  # verify
+                new_fitness = 0
+        new_solution.perf = new_fitness  # setter
 
         logger.info(
             f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature:.2f}'
         )
+
+        if new_fitness < 0:
+            # once illegal memory access, subsequent call may fail
+            # so we early stop here
+            break
+
         if acceptance_probability(current_fitness, new_fitness, temperature,
                                   noise_factor) > random.random():
             current_solution = new_solution
@@ -116,18 +128,16 @@ def simulated_annealing(
             best_fitness = current_fitness
             best_solution = current_solution
 
-        # early stop
-        if new_fitness < 0:
-            # once illegal memory access, subsequent call may fail
-            # so we early stop here
-            break
-
     return best_solution, best_fitness
 
 
 def run_simulated_annealing(
     # kernel
     bin,
+    so_path,
+    metadata,
+    asm,
+    ret_ptr,
     args,
     sig_key,
     non_constexpr_arg_values,
@@ -194,6 +204,25 @@ def run_simulated_annealing(
         non_constexpr_arg_values,
     )
 
+    test_fn = partial(
+        test_via_cubin,
+        so_path,
+        metadata,
+        asm,
+        args,
+        sig_key,
+        non_constexpr_arg_values,
+        ret_ptr,
+        None,
+        None,
+        grid_0,
+        grid_1,
+        grid_2,
+        stream,
+        launch_enter_hook,
+        launch_exit_hook,
+    )
+
     # ===== start =====
     initial_solution = SimulatedSample(eng.kernel_section, eng)
     _ = initial_solution.get_mutable()
@@ -213,6 +242,7 @@ def run_simulated_annealing(
         policy,
         noise_factor,
         eng,
+        test_fn,
     )
 
     _t2 = time.perf_counter()
