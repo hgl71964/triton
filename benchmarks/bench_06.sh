@@ -1,18 +1,19 @@
 #! /bin/bash
 
 # config
-seeds=100
+start=${1:-1}
+seeds=${2:-100}
 workloads=(
         512
         1024
         2048
         4096
         8192
-        16384
-        32768
+        # 16384
+        # 32768
      )
 
-for seed in $( seq 1 $seeds ); do
+for seed in $( seq $start $seeds ); do
         for workload in "${workloads[@]}"; do
                 echo
                 echo "workload ${workload}; seed ${seed}: "

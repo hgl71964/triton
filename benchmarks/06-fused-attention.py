@@ -35,7 +35,7 @@ flags.DEFINE_integer("dump", 0, "whether to dump")
 flags.DEFINE_integer("hack", 0, "whether to hack")
 flags.DEFINE_integer("flash", 0, "whether to use flash attention")
 flags.DEFINE_integer("seed", 1337, "")
-flags.DEFINE_integer("test_sample", 10, "")
+flags.DEFINE_integer("n_tests", 100, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
 flags.DEFINE_integer("load", 1, "whether to load")
 # sa
@@ -526,6 +526,9 @@ def main(_):
         seed=FLAGS.seed,
         save_suffix=str(N_CTX),
         save_dir=f'flash_attn/{N_CTX}',
+
+        # test
+        n_test_samples=FLAGS.n_tests,
 
         # sa
         sa_runs=100,
