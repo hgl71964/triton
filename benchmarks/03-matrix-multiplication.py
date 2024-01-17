@@ -41,7 +41,10 @@ def matmul(a, b, kernel, activation=""):
         a.stride(0), a.stride(1),  #
         b.stride(0), b.stride(1),  #
         c.stride(0), c.stride(1),  #
-        ACTIVATION=activation  #
+        ACTIVATION=activation,  #
+
+        #
+        # load_dir=f'data/NVIDIA_A100_80GB_PCIe/mm_leakyRelu/{FLAGS.wl}',
     )
     return c
 

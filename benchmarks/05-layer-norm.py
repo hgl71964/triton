@@ -414,6 +414,7 @@ def ln_forward(x, w_shape, weight, bias, eps, kernel):
 
         # gh512 (load and verify)
         # load_dir=f'data/Quadro_RTX_8000/layernorm/{N}' if bool(FLAGS.load) else None,
+        # load_dir=f'data/NVIDIA_A100_80GB_PCIe/layernorm/{FLAGS.wl}',
     )
     return y
 

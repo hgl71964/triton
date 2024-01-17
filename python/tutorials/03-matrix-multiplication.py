@@ -425,9 +425,10 @@ b = torch.randn((512, 512), device='cuda', dtype=torch.float16)
 print(f"stride a={a.stride(0)} {a.stride(1)}")
 print(f"stride b={b.stride(0)} {b.stride(1)}")
 
-triton_output = matmul(a, b)
+triton_output = matmul(a, b, "leaky_relu")
 no_l2 = matmul_no_L2(a, b)
-torch_output = torch.matmul(a, b)
+# torch_output = torch.matmul(a, b)
+torch_output = torch.nn.functional.leaky_relu(torch.matmul(a, b))
 
 # print(f"triton_output={triton_output}")
 # print(f"torch_output={torch_output}")
@@ -488,7 +489,7 @@ def benchmark(M, N, K, provider):
         # c = torch.empty((M, N), device=a.device, dtype=a.dtype)
         # # 1D launch kernel where each block gets its own program.
         # grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
-        # ms, min_ms, max_ms = triton.testing.do_bench(lambda: 
+        # ms, min_ms, max_ms = triton.testing.do_bench(lambda:
         # matmul_kernel[grid](
         #     a, b, c,  #
         #     M, N, K,  #
