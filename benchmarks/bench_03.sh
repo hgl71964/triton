@@ -4,11 +4,12 @@
 start=${1:-1}
 seeds=${2:-100}
 workloads=(
+        64
+        256
         512
         1024
         2048
         4096
-        8192
      )
 
 for seed in $( seq $start $seeds ); do

@@ -102,9 +102,11 @@ def simulated_annealing(
     while temperature > 0.05 and cnt < max_iterations:
         new_solution = generate_neighbor(current_solution, n_choices, policy)
         new_fitness, cubin = eng.get_perf(new_solution)
+        test_ok = True
         if new_fitness > 0:
             if not test_fn(cubin, 2):  # verify
                 new_fitness = 0
+                test_ok = False
         new_solution.perf = new_fitness  # setter
 
         if new_fitness < 0:
@@ -118,8 +120,9 @@ def simulated_annealing(
         logger.info(
             f'iter: {cnt}, current_fitness: {current_fitness:.2f}, new_fitness: {new_fitness:.2f}, best_fitness: {best_fitness:.2f}; temperature: {temperature:.2f}'
         )
-        if acceptance_probability(current_fitness, new_fitness, temperature,
-                                  noise_factor) > random.random():
+        if test_ok and acceptance_probability(current_fitness, new_fitness,
+                                              temperature,
+                                              noise_factor) > random.random():
             current_solution = new_solution
             current_fitness = new_fitness
 
