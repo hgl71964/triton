@@ -19,6 +19,7 @@ flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("wl", 1024, "workload of chosen")
 flags.DEFINE_integer("n_tests", 100, "num test samples")
 flags.DEFINE_integer("load", 0, "")
+flags.DEFINE_integer("bench", 0, "whether to bench")
 
 GPU = get_gpu_name()
 
@@ -183,7 +184,11 @@ def main(_):
 
 
     # benchmark
+    if not bool(FLAGS.bench):
+        print('SKIP bench...')
+        return
 
+    torch.cuda.synchronize()
     @triton.autotune(
         configs=[
             # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=1,
@@ -323,6 +328,7 @@ def main(_):
             args={},
         ))
     def benchmark(M, N, provider):
+        print(f'[BENCH]: {provider}; {M}; {N}')
         K=M
         a = torch.randn((M, K*2), device='cuda', dtype=torch.float16)
         b = torch.randn((K*2, N), device='cuda', dtype=torch.float16)
