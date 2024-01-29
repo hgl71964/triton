@@ -22,6 +22,7 @@ import numpy as np
 
 from fgk.jit import search, jit
 from fgk.autotuner import autotune as fgk_autotune
+from fgk.utils.gpu_utils import get_gpu_name
 
 from absl import app
 from absl import flags
@@ -37,7 +38,7 @@ flags.DEFINE_integer("flash", 0, "whether to use flash attention")
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("n_tests", 100, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
-flags.DEFINE_integer("load", 1, "whether to load")
+flags.DEFINE_integer("load", 0, "whether to load")
 # sa
 flags.DEFINE_integer("max_iterations", 1000, "")
 flags.DEFINE_float("temperature", 0.4, "")
@@ -50,7 +51,7 @@ flags.DEFINE_integer("generations", 50, "")
 flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
 #workload
-flags.DEFINE_integer("ctx", 4096, "")
+flags.DEFINE_integer("wl", 4096, "")
 
 @triton.jit
 def _attn_fwd_inner(acc, l_i, m_i, q,  #
@@ -442,6 +443,7 @@ class _attention(torch.autograd.Function):
 attention = _attention.apply
 
 def attn_forward(q, k, v, causal, sm_scale, kernel):
+    gpu = get_gpu_name()
     # shape constraints
     Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
     assert Lq == Lk and Lk == Lv
@@ -480,9 +482,7 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
         # num_stages=num_stages  #
 
         # gh512
-        # load_dir=f'data/Quadro_RTX_8000/flash_attn/{N}' if bool(FLAGS.load) else None,
-        # load_dir=f'data/Quadro_RTX_8000/flash_attn/{FLAGS.ctx}'
-        # load_dir=f'data/NVIDIA_A100_80GB_PCIe/flash_attn/{FLAGS.ctx}',
+        load_dir=f'data/{gpu}/flash_attn/{FLAGS.wl}' if bool(FLAGS.load) else None,
     )
     return o
 

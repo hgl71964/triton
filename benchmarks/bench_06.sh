@@ -20,6 +20,6 @@ for seed in $( seq $start $seeds ); do
                 echo
                 python benchmarks/06-fused-attention.py \
                         --seed $seed \
-                        --ctx $workload
+                        --wl $workload
         done
 done

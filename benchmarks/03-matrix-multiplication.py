@@ -7,6 +7,7 @@ import triton.language as tl
 
 from fgk.jit import jit
 from fgk.autotuner import autotune as fgk_autotune
+from fgk.utils.gpu_utils import get_gpu_name
 
 from absl import app
 from absl import flags
@@ -16,6 +17,8 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("wl", 1024, "workload of chosen")
+flags.DEFINE_integer("n_tests", 100, "num test samples")
+flags.DEFINE_integer("load", 0, "")
 
 # We can fuse `leaky_relu` by providing it as an `ACTIVATION` meta-parameter in `_matmul`.
 @triton.jit
@@ -25,6 +28,8 @@ def leaky_relu(x):
 
 
 def matmul(a, b, kernel, activation=""):
+    gpu = get_gpu_name()
+    load = bool(FLAGS.load)
     # Check constraints.
     assert a.shape[1] == b.shape[0], "Incompatible dimensions"
     assert a.is_contiguous(), "Matrix A must be contiguous"
@@ -44,7 +49,7 @@ def matmul(a, b, kernel, activation=""):
         ACTIVATION=activation,  #
 
         #
-        # load_dir=f'data/NVIDIA_A100_80GB_PCIe/mm_leakyRelu/{FLAGS.wl}',
+        load_dir=f'data/{gpu}/mm_leakyRelu/{FLAGS.wl}' if load else None,
     )
     return c
 
@@ -114,6 +119,7 @@ def main(_):
         save_dir=f'mm_leakyRelu/{wl}',
         ret_ptr=2,
         total_flops=2 * wl * wl * wl,
+        n_test_samples=FLAGS.n_tests,
     )
     @jit
     def matmul_kernel(
@@ -201,7 +207,7 @@ def main(_):
         print("✅ Triton and Torch match")
     else:
         print("❌ Triton and Torch differ")
-    # benchmark.run(show_plots=True, print_data=True)
+    # benchmark.run(show_plots=False, print_data=True)
 
 
 if __name__ == '__main__':

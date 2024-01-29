@@ -19,7 +19,6 @@ def save_data(
     algo,
 ) -> str:
     gpu_name = get_gpu_name()
-    gpu_name = gpu_name.replace(' ', '_')
 
     data = {}
     data['cubin'] = bin.asm['cubin']  # binary

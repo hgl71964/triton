@@ -8,6 +8,7 @@ def get_gpu_name():
             ['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
             universal_newlines=True)
         gpu_name = output.strip()
+        gpu_name = gpu_name.replace(' ', '_')
         return gpu_name
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Error: {e}")
