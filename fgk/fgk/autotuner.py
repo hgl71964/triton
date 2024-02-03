@@ -1,3 +1,5 @@
+import os
+import pickle
 import time
 import builtins
 from typing import Dict, Union, Optional
@@ -10,6 +12,7 @@ from triton.runtime.autotuner import OutOfResources
 
 from fgk.jit import asm_JITFunction
 from fgk.utils.logger import get_logger
+from fgk.utils.gpu_utils import get_gpu_name
 
 logger = get_logger(__name__)
 
@@ -46,6 +49,7 @@ class Autotuner(TritonAutotuner):
             rep,
         )
 
+        self.cache_config = None
         self.ret_ptr = ret_ptr
 
         # workload
@@ -138,13 +142,14 @@ class Autotuner(TritonAutotuner):
         ret_ptr = get_special_arg("ret_ptr")
         if self.ret_ptr is not None:
             ret_ptr = self.ret_ptr
-        test_inputs = get_special_arg("test_inputs")
-        test_outputs = get_special_arg("test_outputs")
+        assert ret_ptr is not None, "ret_ptr must be provided"
+        # test_inputs = get_special_arg("test_inputs")
+        # test_outputs = get_special_arg("test_outputs")
         load_dir = get_special_arg("load_dir")
-        if ret_ptr is None:  # NOTE: if ret_ptr is not None, we use it as the output test
-            assert test_inputs is not None and test_outputs is not None, f'either ret_ptr or test_inputs and test_outputs must be provided for testing'
 
-        if len(self.configs) > 1:
+        if self._exist_config():
+            config = self.cache_config
+        elif len(self.configs) > 1:
             all_args = {**self.nargs, **kwargs}
             _args = []
             for name in self.arg_names:
@@ -159,16 +164,17 @@ class Autotuner(TritonAutotuner):
                 # prune configs
                 pruned_configs = self.prune_configs(kwargs)
                 bench_start = time.time()
-                timings = {
-                    config: self._bench(*args, config=config, **kwargs)
-                    for config in pruned_configs
-                }
+                timings = {}
+                for config in pruned_configs:
+                    res = self._bench(*args, config=config, **kwargs)
+                    timings[config] = res
                 bench_end = time.time()
                 self.bench_time = bench_end - bench_start
                 self.cache[key] = builtins.min(timings, key=timings.get)
                 self.pre_hook(args, reset_only=True)
                 self.configs_timings = timings
             config = self.cache[key]
+            self._write_config(config)
         else:
             config = self.configs[0]
         self.best_config = config
@@ -184,15 +190,44 @@ class Autotuner(TritonAutotuner):
             enable_warp_specialization=config.enable_warp_specialization,
             # gh512
             ret_ptr=ret_ptr,
-            test_inputs=test_inputs,
-            test_outputs=test_outputs,
+            # test_inputs=test_inputs,
+            # test_outputs=test_outputs,
             load_dir=load_dir,
             **kwargs,
             **config.kwargs,
         )
         self.nargs = None
-
         return ret
+
+    def _write_config(self, config):
+        gpu_name = get_gpu_name()
+        dir_path = f'data/{gpu_name}'
+        if self.save_dir is not None:
+            dir_path = f'data/{gpu_name}/{self.save_dir}'
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+
+        cache_path = f'{dir_path}/cache_config.pkl'
+        with open(cache_path, 'wb') as f:
+            pickle.dump(config, f)
+
+    def _exist_config(self) -> bool:
+        if self.cache_config is not None:
+            return True
+
+        gpu_name = get_gpu_name()
+        dir_path = f'data/{gpu_name}'
+        if self.save_dir is not None:
+            dir_path = f'data/{gpu_name}/{self.save_dir}'
+        if not os.path.exists(dir_path):
+            return False
+
+        cache_path = f'{dir_path}/cache_config.pkl'
+        if os.path.isfile(cache_path):
+            with open(cache_path, 'rb') as f:
+                self.cache_config = pickle.load(f)
+            return True
+        return False
 
 
 def autotune(
