@@ -26,6 +26,13 @@ flags.DEFINE_integer("n_tests", 100, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
 flags.DEFINE_integer("load", 0, "whether to load")
 flags.DEFINE_integer("bench", 0, "whether to bench")
+
+# workload
+flags.DEFINE_integer("Z", 4, "")
+flags.DEFINE_integer("H", 48, "")
+flags.DEFINE_integer("wl", 4096, "")
+flags.DEFINE_integer("D_HEAD", 64, "")
+
 # sa
 flags.DEFINE_integer("max_iterations", 1000, "")
 flags.DEFINE_float("temperature", 0.4, "")
@@ -37,8 +44,6 @@ flags.DEFINE_integer("population_size", 100, "")
 flags.DEFINE_integer("generations", 50, "")
 flags.DEFINE_float("mutation_rate", 0.1, "")
 flags.DEFINE_integer("tournament_size", 5, "")
-#workload
-flags.DEFINE_integer("wl", 4096, "")
 
 GPU = get_gpu_name()
 
@@ -561,7 +566,7 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
         # num_stages=num_stages  #
 
         # gh512
-        load_dir=f'data/{GPU}/flash_attn/{FLAGS.wl}' if bool(FLAGS.load) else None,
+        load_dir=f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}' if bool(FLAGS.load) else None,
     )
     return o
 
@@ -575,7 +580,7 @@ def main(_):
     torch.backends.cudnn.deterministic = True
 
     # workload
-    Z, H, N_CTX, D_HEAD = 4, 48, FLAGS.wl, 64
+    Z, H, N_CTX, D_HEAD = FLAGS.Z, FLAGS.H, FLAGS.wl, FLAGS.D_HEAD
     dtype = torch.float16
     q = (
         torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype,
@@ -604,7 +609,8 @@ def main(_):
         total_flops=total_flops,
         seed=FLAGS.seed,
         save_suffix=str(N_CTX),
-        save_dir=f'flash_attn/{N_CTX}',
+        # save_dir=f'flash_attn/{N_CTX}',
+        save_dir=f'flash_attn/{Z}_{H}_{N_CTX}_{D_HEAD}',
 
         # test
         n_test_samples=FLAGS.n_tests,
@@ -703,18 +709,19 @@ def main(_):
     fgk_out = attn_forward(q, k, v, causal, sm_scale, _attn_fwd).half()
 
     ## TEST
-    print('TEST')
+    if FLAGS.wl < 8192:  # OOM
+        print('TEST')
 
-    # reference implementation
-    M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
-    p = torch.matmul(q, k.transpose(2, 3)) * sm_scale
-    if causal:
-        p[:, :, M == 0] = float("-inf")
-    p = torch.softmax(p.float(), dim=-1).half()
-    ref_out = torch.matmul(p, v)
+        # reference implementation
+        M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
+        p = torch.matmul(q, k.transpose(2, 3)) * sm_scale
+        if causal:
+            p[:, :, M == 0] = float("-inf")
+        p = torch.softmax(p.float(), dim=-1).half()
+        ref_out = torch.matmul(p, v)
 
-    assert torch.allclose(ref_out, fgk_out, atol=1e-2, rtol=0)
-    print('TEST PASSED')
+        assert torch.allclose(ref_out, fgk_out, atol=1e-2, rtol=0)
+        print('TEST PASSED')
 
     if not bool(FLAGS.bench):
         print('SKIP bench...')
@@ -736,7 +743,7 @@ def main(_):
     TORCH_HAS_FP8 = False
 
     print(f"use flash: {HAS_FLASH}; use fp8: {TORCH_HAS_FP8}")
-    BATCH, N_HEADS, N_CTX, D_HEAD = 4, 48, FLAGS.wl, 64
+    BATCH, N_HEADS, N_CTX, D_HEAD = FLAGS.Z, FLAGS.H, FLAGS.wl, FLAGS.D_HEAD
 
     configs = []
     # for mode in ["fwd", "bwd"]:
@@ -753,7 +760,7 @@ def main(_):
                     line_arg="provider",
                     line_vals=["fgk", "triton"] + (["flash"] if HAS_FLASH else []),
                     line_names=["FGK", "Triton"] + (["Flash-2"] if HAS_FLASH else []),
-                    styles=[("red", "-"), ("blue", "-"), ("green", "*")],
+                    styles=[("red", "-"), ("blue", "-"), ("green", "-")],
                     ylabel="ms",
                     plot_name=f"fused-attention-batch{BATCH}-head{N_HEADS}-d{D_HEAD}-{mode}-causal={causal}",
                     args={

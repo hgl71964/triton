@@ -321,11 +321,11 @@ def main(_):
 
             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
             # Possible values for `line_arg`
-            line_vals=['fgk', 'triton'],
+            line_vals=['cublas', 'fgk', 'triton'],
             # Label name for the lines
-            line_names=["FGK", "Triton"],
+            line_names=['cuBLAS', "FGK", "Triton"],
             # Line styles
-            styles=[('green', '-'), ('blue', '-')],
+            styles=[('red', '-'), ('green', '-'), ('blue', '-')],
             ylabel="TFLOPS",  # Label name for the y-axis
             plot_name="matmul-performance",  # Name for the plot, used also as a file name for saving the plot.
             args={},
@@ -336,6 +336,8 @@ def main(_):
         a = torch.randn((M, K*2), device='cuda', dtype=torch.float16)
         b = torch.randn((K*2, N), device='cuda', dtype=torch.float16)
         quantiles = [0.5, 0.2, 0.8]
+        if provider == 'cublas':
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch.nn.functional.leaky_relu(torch.matmul(a, b)),warmup=100, rep=100,  quantiles=quantiles)
         if provider == 'fgk':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul(a, b, matmul_kernel, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         if provider == 'triton':
