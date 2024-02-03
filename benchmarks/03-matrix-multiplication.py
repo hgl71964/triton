@@ -313,9 +313,12 @@ def main(_):
     @triton.testing.perf_report(
         triton.testing.Benchmark(
             x_names=['M', 'N'],  # Argument names to use as an x-axis for the plot
+
             # x_vals=[128 * i for i in range(2, 33)],  # Different possible values for `x_name`
             # x_vals=[128 * i for i in range(2, 5)],  # Different possible values for `x_name`
-            x_vals=[int(2**i) for i in range(9, 14)],  # Different possible values for `x_name`
+            # x_vals=[int(2**i) for i in range(9, 14)],  # Different possible values for `x_name`
+            x_vals=[M],
+
             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
             # Possible values for `line_arg`
             line_vals=['fgk', 'triton'],
