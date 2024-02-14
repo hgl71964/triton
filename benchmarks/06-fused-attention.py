@@ -853,7 +853,7 @@ def main(_):
 
     @triton.testing.perf_report(configs)
     def bench_flash_attention(BATCH, H, N_CTX, D_HEAD, causal, mode, provider, dtype=torch.float16, device="cuda"):
-        print(f'[BENCH]: {provider} {N_CTX}')
+        print(f'[BENCH]: {provider};; {BATCH} {H} {N_CTX} {D_HEAD}')
         assert mode in ["fwd", "bwd"]
         warmup = 100
         rep = 100
@@ -903,9 +903,11 @@ def main(_):
 
     df = bench_flash_attention.run(print_data=True, return_df=True)
     assert len(df) == 1, f'expected 1 row, got {len(df)}'
-    if not os.path.exists(f"data/{GPU}/results/flash_attn"):
-        os.makedirs(f"data/{GPU}/results/flash_attn")
-    df[0].to_pickle(f"data/{GPU}/results/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}.pkl")
+    fp = f"data/{GPU}/results/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}.pkl"
+    if not os.path.exists(fp):
+        if not os.path.exists(f"data/{GPU}/results/flash_attn"):
+            os.makedirs(f"data/{GPU}/results/flash_attn")
+        df[0].to_pickle(fp)
 
 if __name__ == "__main__":
     app.run(main)

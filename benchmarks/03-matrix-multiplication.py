@@ -350,9 +350,11 @@ def main(_):
 
     df = benchmark.run(show_plots=False, print_data=True, return_df=True)
     assert len(df) == 1, f'expected 1 row, got {len(df)}'
-    if not os.path.exists(f"data/{GPU}/results/mm_leakyReLU"):
-        os.makedirs(f"data/{GPU}/results/mm_leakyReLU")
-    df[0].to_pickle(f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}.pkl")
+    fp = f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}.pkl"
+    if not os.path.exists(fp):
+        if not os.path.exists(f"data/{GPU}/results/mm_leakyReLU"):
+            os.makedirs(f"data/{GPU}/results/mm_leakyReLU")
+        df[0].to_pickle(fp)
 
 
 if __name__ == '__main__':
