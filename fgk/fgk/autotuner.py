@@ -147,7 +147,9 @@ class Autotuner(TritonAutotuner):
         # test_outputs = get_special_arg("test_outputs")
         load_dir = get_special_arg("load_dir")
 
-        if self._exist_config():
+        if self.cache_config is not None:
+            config = self.cache_config
+        elif self._exist_config():
             config = self.cache_config
         elif len(self.configs) > 1:
             all_args = {**self.nargs, **kwargs}
@@ -212,9 +214,6 @@ class Autotuner(TritonAutotuner):
             pickle.dump(config, f)
 
     def _exist_config(self) -> bool:
-        if self.cache_config is not None:
-            return True
-
         gpu_name = get_gpu_name()
         dir_path = f'data/{gpu_name}'
         if self.save_dir is not None:

@@ -1,3 +1,4 @@
+import os
 import random
 import numpy as np
 import torch
@@ -69,30 +70,30 @@ def main(_):
 
     @fgk_autotune(
         configs=[
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=1,
-            #               num_warps=8),
-            # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-            #               num_warps=2),
-            # triton.Config({'BLOCK_SIZE_M': 32, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-            #               num_warps=2),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=1,
+                          num_warps=8),
+            triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
+                          num_warps=2),
+            triton.Config({'BLOCK_SIZE_M': 32, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
+                          num_warps=2),
             triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=2,
                         num_warps=2),
         ],
         key=['M', 'N', 'K'],
         seed=FLAGS.seed,
-        save_dir=f'mm_leakyRelu/{wl}',
+        save_dir=f'mm_leakyRelu/{M}_{N}_{K}',
         ret_ptr=2,
-        total_flops=2 * wl * wl * (2*wl),
+        total_flops=M*N*2*K,
         n_test_samples=FLAGS.n_tests,
     )
     @jit
@@ -191,22 +192,22 @@ def main(_):
     torch.cuda.synchronize()
     @triton.autotune(
         configs=[
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=1,
-            #               num_warps=8),
-            # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
-            #               num_warps=4),
-            # triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-            #               num_warps=2),
-            # triton.Config({'BLOCK_SIZE_M': 32, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
-            #               num_warps=2),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=1,
+                          num_warps=8),
+            triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=4,
+                          num_warps=4),
+            triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
+                          num_warps=2),
+            triton.Config({'BLOCK_SIZE_M': 32, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5,
+                          num_warps=2),
             triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=2,
                         num_warps=2),
         ],
@@ -332,9 +333,9 @@ def main(_):
         ))
     def benchmark(M, N, provider):
         print(f'[BENCH]: {provider}; {M}; {N}')
-        K=M
-        a = torch.randn((M, K*2), device='cuda', dtype=torch.float16)
-        b = torch.randn((K*2, N), device='cuda', dtype=torch.float16)
+        K=2*M
+        a = torch.randn((M, K), device='cuda', dtype=torch.float16)
+        b = torch.randn((K, N), device='cuda', dtype=torch.float16)
         quantiles = [0.5, 0.2, 0.8]
         if provider == 'cublas':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch.nn.functional.leaky_relu(torch.matmul(a, b)),warmup=100, rep=100,  quantiles=quantiles)
@@ -342,9 +343,14 @@ def main(_):
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul(a, b, matmul_kernel, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         if provider == 'triton':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_matmul(a, b, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
-        perf = lambda ms: 2 * M * N * (2*K) * 1e-12 / (ms * 1e-3)
+        perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
         return perf(ms), perf(max_ms), perf(min_ms)
-    benchmark.run(show_plots=False, print_data=True)
+
+    df = benchmark.run(show_plots=False, print_data=True, return_df=True)
+    assert len(df) == 1, f'expected 1 row, got {len(df)}'
+    if not os.path.exists(f"data/{GPU}/results/mm_leakyReLU"):
+        os.makedirs(f"data/{GPU}/results/mm_leakyReLU")
+    df[0].to_pickle(f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}.pkl")
 
 
 if __name__ == '__main__':

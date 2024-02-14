@@ -1,3 +1,4 @@
+import os
 import torch
 
 import triton
@@ -28,10 +29,10 @@ flags.DEFINE_integer("load", 0, "whether to load")
 flags.DEFINE_integer("bench", 0, "whether to bench")
 
 # workload
-flags.DEFINE_integer("Z", 4, "")
-flags.DEFINE_integer("H", 48, "")
-flags.DEFINE_integer("wl", 4096, "")
-flags.DEFINE_integer("D_HEAD", 64, "")
+flags.DEFINE_integer("Z", 1, "")
+flags.DEFINE_integer("H", 4, "")
+flags.DEFINE_integer("wl", 1024, "")
+flags.DEFINE_integer("D_HEAD", 32, "")
 
 # sa
 flags.DEFINE_integer("max_iterations", 1000, "")
@@ -96,6 +97,27 @@ def _attn_fwd_inner(acc, l_i, m_i, q,  #
         K_block_ptr = tl.advance(K_block_ptr, (0, BLOCK_N))
     return acc, l_i, m_i
 
+@triton.autotune(
+       configs=[
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=2, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=4, num_warps=8),
+        # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
+        # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=8),
+        # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=4, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=3, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=4, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=7, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=7, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=6, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=5, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 32}, num_stages=4, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=6, num_warps=4),
+        ],
+        key=['N_CTX'],
+)
 @triton.jit
 def _attn_fwd_triton(Q, K, V, sm_scale, M, Out,  #
               stride_qz, stride_qh, stride_qm, stride_qk,  #
@@ -571,6 +593,45 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
     return o
 
 
+def triton_attn_forward(q, k, v, causal, sm_scale, kernel):
+    # shape constraints
+    Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
+    assert Lq == Lk and Lk == Lv
+    assert Lk in {16, 32, 64, 128}
+    o = torch.empty_like(q)
+    BLOCK_M = 128
+    BLOCK_N = 64 if Lk <= 64 else 32
+    # num_stages = 4 if Lk <= 64 else 3  # ampere
+    num_stages = 2  # turing
+    num_warps = 4
+    stage = 3 if causal else 1
+    # Tuning for H100
+    if torch.cuda.get_device_capability()[0] == 9:
+        num_warps = 8
+        num_stages = 7 if Lk >= 64 else 3
+
+    # q, k, v: (Z, H, N_CTX, D_HEAD)
+    grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+    M = torch.empty(
+        (q.shape[0], q.shape[1], q.shape[2]),
+        device=q.device,
+        dtype=torch.float32)
+    kernel[grid](
+        q, k, v, sm_scale, M, o,  #
+        q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
+        k.stride(0), k.stride(1), k.stride(2), k.stride(3),  #
+        v.stride(0), v.stride(1), v.stride(2), v.stride(3),  #
+        o.stride(0), o.stride(1), o.stride(2), o.stride(3),  #
+        q.shape[0], q.shape[1],  #
+        N_CTX=q.shape[2],  #
+        # BLOCK_M=BLOCK_M,  #
+        # BLOCK_N=BLOCK_N,  #
+        BLOCK_DMODEL=Lk,  #
+        STAGE=stage,  #
+        # num_warps=num_warps,  #
+        # num_stages=num_stages  #
+    )
+    return o
 
 def main(_):
 
@@ -720,8 +781,9 @@ def main(_):
         tl.store(m_ptrs, m_i)
         tl.store(O_block_ptr, acc.to(Out.type.element_ty))
 
-
-    fgk_out = attn_forward(q, k, v, causal, sm_scale, _attn_fwd).half()
+    # by default it is half
+    fgk_out = attn_forward(q, k, v, causal, sm_scale, _attn_fwd)
+    # tri_out = triton_attn_forward(q, k, v, causal, sm_scale, _attn_fwd_triton).half()
 
     ## TEST
     if FLAGS.wl < 8192:  # OOM
@@ -817,7 +879,7 @@ def main(_):
                 k = k.to(torch.float8_e5m2)
             v = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
             sm_scale = 1.3
-            fn = lambda: attention(q, k, v, causal, sm_scale)
+            fn = lambda: triton_attn_forward(q, k, v, causal, sm_scale, _attn_fwd_triton)
             if mode == "bwd":
                 o = fn()
                 do = torch.randn_like(o)
@@ -839,8 +901,11 @@ def main(_):
             total_flops *= 2.5  # 2.0(bwd) + 0.5(recompute)
         return total_flops / ms * 1e-9
 
-    # only works on post-Ampere GPUs right now
-    bench_flash_attention.run(print_data=True)
+    df = bench_flash_attention.run(print_data=True, return_df=True)
+    assert len(df) == 1, f'expected 1 row, got {len(df)}'
+    if not os.path.exists(f"data/{GPU}/results/flash_attn"):
+        os.makedirs(f"data/{GPU}/results/flash_attn")
+    df[0].to_pickle(f"data/{GPU}/results/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}.pkl")
 
 if __name__ == "__main__":
     app.run(main)
