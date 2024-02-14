@@ -266,9 +266,13 @@ def matmul_no_L2(a, b, activation=""):
 #
 # We can test our custom matrix multiplication operation against a native torch implementation (i.e., cuBLAS).
 
+factor = 1
+M = 512
+N = 512
+K = M*4
 torch.manual_seed(0)
-a = torch.randn((512, 512), device='cuda', dtype=torch.float16)
-b = torch.randn((512, 512), device='cuda', dtype=torch.float16)
+a = torch.randn((M, K), device='cuda', dtype=torch.float16)
+b = torch.randn((K, N), device='cuda', dtype=torch.float16)
 
 print(f"stride a={a.stride(0)} {a.stride(1)}")
 print(f"stride b={b.stride(0)} {b.stride(1)}")
@@ -304,7 +308,7 @@ else:
 
 @triton.testing.perf_report(
     triton.testing.Benchmark(
-        x_names=['M', 'N', 'K'],  # Argument names to use as an x-axis for the plot
+        x_names=['M', 'N'],  # Argument names to use as an x-axis for the plot
         # x_vals=[128 * i for i in range(2, 33)],  # Different possible values for `x_name`
         # x_vals=[128 * i for i in range(2, 5)],  # Different possible values for `x_name`
         x_vals=[int(2**i) for i in range(9, 14)],  # Different possible values for `x_name`
@@ -319,7 +323,9 @@ else:
         plot_name="matmul-performance",  # Name for the plot, used also as a file name for saving the plot.
         args={},
     ))
-def benchmark(M, N, K, provider):
+def benchmark(M, N, provider):
+    assert M == N, f'{M} != {N}'
+    K= factor*M
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
     quantiles = [0.5, 0.2, 0.8]
