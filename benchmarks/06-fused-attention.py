@@ -786,7 +786,7 @@ def main(_):
     # tri_out = triton_attn_forward(q, k, v, causal, sm_scale, _attn_fwd_triton).half()
 
     ## TEST
-    if FLAGS.wl < 8192:  # OOM
+    if FLAGS.wl < 8192 or FLAGS.Z == 128:  # OOM
         print('TEST')
 
         # reference implementation

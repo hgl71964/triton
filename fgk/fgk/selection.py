@@ -37,6 +37,9 @@ def run_selection(
             data = pickle.load(f)
         rankings[i] = data
 
+    if len(rankings) == 0:
+        raise RuntimeError('no valid cubin found')
+
     # for run, data in sorted(rankings.items(),
     #                         key=lambda x: x[1]['final_perf'],
     #                         reverse=True):

@@ -18,6 +18,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("wl", 1024, "workload of chosen")
+flags.DEFINE_integer("factor", 4, "")
 flags.DEFINE_integer("n_tests", 100, "num test samples")
 flags.DEFINE_integer("load", 0, "")
 flags.DEFINE_integer("bench", 0, "whether to bench")
@@ -64,7 +65,8 @@ def main(_):
     torch.manual_seed(FLAGS.seed)
 
     wl= FLAGS.wl
-    M, N, K = wl, wl, wl * 2
+    factor = FLAGS.factor
+    M, N, K = wl, wl, wl * factor
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
 
@@ -333,7 +335,7 @@ def main(_):
         ))
     def benchmark(M, N, provider):
         print(f'[BENCH]: {provider}; {M}; {N}')
-        K=2*M
+        K=factor*M
         a = torch.randn((M, K), device='cuda', dtype=torch.float16)
         b = torch.randn((K, N), device='cuda', dtype=torch.float16)
         quantiles = [0.5, 0.2, 0.8]

@@ -12,6 +12,7 @@ workloads=(
         4096
 
         8192
+        16384
      )
 
 for seed in $( seq $start $seeds ); do
