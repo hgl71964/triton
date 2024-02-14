@@ -148,8 +148,13 @@ class Autotuner(TritonAutotuner):
         load_dir = get_special_arg("load_dir")
 
         if self.cache_config is not None:
+            # cached
             config = self.cache_config
+        elif len(self.configs) == 1:
+            # heuristic
+            config = self.configs[0]
         elif self._exist_config():
+            # file IO, NOTE in benchmark, don't do it
             config = self.cache_config
         elif len(self.configs) > 1:
             all_args = {**self.nargs, **kwargs}
@@ -178,7 +183,7 @@ class Autotuner(TritonAutotuner):
             config = self.cache[key]
             self._write_config(config)
         else:
-            config = self.configs[0]
+            raise RuntimeError("No config found")
         self.best_config = config
         full_nargs = {**self.nargs, **kwargs, **self.best_config.kwargs}
         if config.pre_hook is not None:

@@ -334,7 +334,7 @@ def main(_):
             args={},
         ))
     def benchmark(M, N, provider):
-        print(f'[BENCH]: {provider}; {M}; {N}')
+        print(f'[BENCH]: {provider}; {M}; {N}; {K}')
         K=factor*M
         a = torch.randn((M, K), device='cuda', dtype=torch.float16)
         b = torch.randn((K, N), device='cuda', dtype=torch.float16)
