@@ -3,6 +3,7 @@
 # config
 start=${1:-1}
 seeds=${2:-100}
+factor=4
 workloads=(
         64
         256
@@ -22,6 +23,7 @@ for seed in $( seq $start $seeds ); do
                 echo
                 python benchmarks/03-matrix-multiplication.py \
                         --seed $seed \
+                        --factor $factor \
                         --wl $workload
         done
 done

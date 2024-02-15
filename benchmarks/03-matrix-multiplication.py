@@ -286,6 +286,7 @@ def main(_):
         tl.store(c_ptrs, c, mask=c_mask)
 
     def triton_matmul(a, b, activation=""):
+        load = bool(FLAGS.load)
         # Check constraints.
         assert a.shape[1] == b.shape[0], "Incompatible dimensions"
         assert a.is_contiguous(), "Matrix A must be contiguous"
