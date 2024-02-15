@@ -185,13 +185,6 @@ def main(_):
     else:
         print("❌ Triton and Torch differ")
 
-
-    # benchmark
-    if not bool(FLAGS.bench):
-        print('SKIP bench...')
-        return
-
-    torch.cuda.synchronize()
     @triton.autotune(
         configs=[
             triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64, 'GROUP_SIZE_M': 8}, num_stages=1,
@@ -312,6 +305,13 @@ def main(_):
             ACTIVATION=activation,  #
         )
         return c
+
+    # benchmark
+    if not bool(FLAGS.bench):
+        print('SKIP bench...')
+        return
+
+    torch.cuda.synchronize()
 
     @triton.testing.perf_report(
         triton.testing.Benchmark(

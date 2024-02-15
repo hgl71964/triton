@@ -857,6 +857,7 @@ def main(_):
         assert mode in ["fwd", "bwd"]
         warmup = 100
         rep = 100
+        sm_scale = 0.5
         if provider == "fgk":
             q = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
             k = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
@@ -864,7 +865,6 @@ def main(_):
                 q = q.to(torch.float8_e5m2)
                 k = k.to(torch.float8_e5m2)
             v = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
-            sm_scale = 1.3
             fn = lambda: attn_forward(q, k, v, causal, sm_scale, _attn_fwd)
             if mode == "bwd":
                 o = fn()
@@ -878,7 +878,6 @@ def main(_):
                 q = q.to(torch.float8_e5m2)
                 k = k.to(torch.float8_e5m2)
             v = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
-            sm_scale = 1.3
             fn = lambda: triton_attn_forward(q, k, v, causal, sm_scale, _attn_fwd_triton)
             if mode == "bwd":
                 o = fn()
