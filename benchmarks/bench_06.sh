@@ -1,6 +1,7 @@
 #! /bin/bash
 
 # config
+test=500
 workloads=(
         16384
         8192
@@ -37,6 +38,7 @@ for Z in "${Zs[@]}"; do
                                 echo "workload ${Z}_${H}_${workload}_${HEAD}; "
                                 echo
                                 python benchmarks/06-fused-attention.py \
+                                        --n_tests $test \
                                         --Z $Z \
                                         --H $H \
                                         --D_HEAD $HEAD \
