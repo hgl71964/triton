@@ -16,19 +16,19 @@ workloads=(
 Zs=(
         1
         16
-        128
      )
 
 Hs=(
+        4
         16
         64
-        4
      )
 
 HEADs=(
         32
         64
         128
+        256
      )
 
 for seed in $( seq $start $seeds ); do
