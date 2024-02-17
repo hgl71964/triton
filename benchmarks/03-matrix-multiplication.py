@@ -53,7 +53,7 @@ def matmul(a, b, kernel, activation=""):
         ACTIVATION=activation,  #
 
         #
-        load_dir=f'data/{GPU}/mm_leakyRelu/{FLAGS.wl}' if load else None,
+        load_dir=f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}' if load else None,
     )
     return c
 
@@ -335,27 +335,30 @@ def main(_):
             args={},
         ))
     def benchmark(M, N, provider):
-        print(f'[BENCH]: {provider}; {M}; {N}; {K}')
         K=factor*M
+        print(f'[BENCH]: {provider}; {M}; {N}; {K}')
         a = torch.randn((M, K), device='cuda', dtype=torch.float16)
         b = torch.randn((K, N), device='cuda', dtype=torch.float16)
-        quantiles = [0.5, 0.2, 0.8]
+        # quantiles = [0.5, 0.2, 0.8]
+        quantiles = None
         if provider == 'cublas':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch.nn.functional.leaky_relu(torch.matmul(a, b)),warmup=100, rep=100,  quantiles=quantiles)
+            ms = triton.testing.do_bench(lambda: torch.nn.functional.leaky_relu(torch.matmul(a, b)),warmup=100, rep=100,  quantiles=quantiles)
         if provider == 'fgk':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul(a, b, matmul_kernel, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
+            ms = triton.testing.do_bench(lambda: matmul(a, b, matmul_kernel, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         if provider == 'triton':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_matmul(a, b, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
+            ms = triton.testing.do_bench(lambda: triton_matmul(a, b, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
-        return perf(ms), perf(max_ms), perf(min_ms)
+        return perf(ms)
 
     df = benchmark.run(show_plots=False, print_data=True, return_df=True)
-    assert len(df) == 1, f'expected 1 row, got {len(df)}'
+    if isinstance(df, list):
+        assert len(df) == 1, f'expected 1 row, got {len(df)}'
+        df = df[0]
     fp = f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}.pkl"
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/mm_leakyReLU"):
             os.makedirs(f"data/{GPU}/results/mm_leakyReLU")
-        df[0].to_pickle(fp)
+        df.to_pickle(fp)
 
 
 if __name__ == '__main__':

@@ -901,7 +901,9 @@ def main(_):
         return total_flops / ms * 1e-9
 
     df = bench_flash_attention.run(print_data=True, return_df=True)
-    assert len(df) == 1, f'expected 1 row, got {len(df)}'
+    if isinstance(df, list):
+        assert len(df) == 1, f'expected 1 row, got {len(df)}'
+        df = df[0]
     fp = f"data/{GPU}/results/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}.pkl"
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/flash_attn"):
