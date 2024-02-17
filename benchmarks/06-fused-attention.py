@@ -31,8 +31,8 @@ flags.DEFINE_integer("bench", 0, "whether to bench")
 # workload
 flags.DEFINE_integer("Z", 1, "")
 flags.DEFINE_integer("H", 4, "")
-flags.DEFINE_integer("wl", 1024, "")
-flags.DEFINE_integer("D_HEAD", 32, "")
+flags.DEFINE_integer("wl", 16384, "")
+flags.DEFINE_integer("D_HEAD", 64, "")
 
 # sa
 flags.DEFINE_integer("max_iterations", 1000, "")
@@ -549,29 +549,12 @@ class _attention(torch.autograd.Function):
 
 attention = _attention.apply
 
-def attn_forward(q, k, v, causal, sm_scale, kernel):
+def attn_forward(q, k, v, M, o, grid, causal, sm_scale, kernel, load_dir):
     # shape constraints
     Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
-    assert Lq == Lk and Lk == Lv
-    assert Lk in {16, 32, 64, 128}
-    o = torch.empty_like(q)
-    BLOCK_M = 128
-    BLOCK_N = 64 if Lk <= 64 else 32
-    # num_stages = 4 if Lk <= 64 else 3  # ampere
-    num_stages = 2  # turing
-    num_warps = 4
     stage = 3 if causal else 1
-    # Tuning for H100
-    if torch.cuda.get_device_capability()[0] == 9:
-        num_warps = 8
-        num_stages = 7 if Lk >= 64 else 3
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
-    grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty(
-        (q.shape[0], q.shape[1], q.shape[2]),
-        device=q.device,
-        dtype=torch.float32)
     kernel[grid](
         q, k, v, sm_scale, M, o,  #
         q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
@@ -588,34 +571,17 @@ def attn_forward(q, k, v, causal, sm_scale, kernel):
         # num_stages=num_stages  #
 
         # gh512
-        load_dir=f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}' if bool(FLAGS.load) else None,
+        load_dir=load_dir,
     )
     return o
 
 
-def triton_attn_forward(q, k, v, causal, sm_scale, kernel):
+def triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale, kernel):
     # shape constraints
     Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
-    assert Lq == Lk and Lk == Lv
-    assert Lk in {16, 32, 64, 128}
-    o = torch.empty_like(q)
-    BLOCK_M = 128
-    BLOCK_N = 64 if Lk <= 64 else 32
-    # num_stages = 4 if Lk <= 64 else 3  # ampere
-    num_stages = 2  # turing
-    num_warps = 4
     stage = 3 if causal else 1
-    # Tuning for H100
-    if torch.cuda.get_device_capability()[0] == 9:
-        num_warps = 8
-        num_stages = 7 if Lk >= 64 else 3
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
-    grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    M = torch.empty(
-        (q.shape[0], q.shape[1], q.shape[2]),
-        device=q.device,
-        dtype=torch.float32)
     kernel[grid](
         q, k, v, sm_scale, M, o,  #
         q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
@@ -782,8 +748,16 @@ def main(_):
         tl.store(O_block_ptr, acc.to(Out.type.element_ty))
 
     # by default it is half
-    fgk_out = attn_forward(q, k, v, causal, sm_scale, _attn_fwd)
-    # tri_out = triton_attn_forward(q, k, v, causal, sm_scale, _attn_fwd_triton).half()
+    o = torch.empty_like(q)
+    M = torch.empty(
+        (q.shape[0], q.shape[1], q.shape[2]),
+        device=q.device,
+        dtype=torch.float32)
+    BLOCK_M=128
+    grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+    load_dir = f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}' if bool(FLAGS.load) else None
+    fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd, load_dir)
+    # tri_out = triton_attn_forward(q, k, v, o, causal, sm_scale, _attn_fwd_triton)
 
     ## TEST
     if FLAGS.wl < 8192:  # OOM
@@ -865,7 +839,14 @@ def main(_):
                 q = q.to(torch.float8_e5m2)
                 k = k.to(torch.float8_e5m2)
             v = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
-            fn = lambda: attn_forward(q, k, v, causal, sm_scale, _attn_fwd)
+            o = torch.empty_like(q)
+            M = torch.empty(
+                (q.shape[0], q.shape[1], q.shape[2]),
+                device=q.device,
+                dtype=torch.float32)
+            grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+            load_dir = f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}'
+            fn = lambda: attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd, load_dir)
             if mode == "bwd":
                 o = fn()
                 do = torch.randn_like(o)
@@ -878,7 +859,13 @@ def main(_):
                 q = q.to(torch.float8_e5m2)
                 k = k.to(torch.float8_e5m2)
             v = torch.randn((BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True)
-            fn = lambda: triton_attn_forward(q, k, v, causal, sm_scale, _attn_fwd_triton)
+            o = torch.empty_like(q)
+            M = torch.empty(
+                (q.shape[0], q.shape[1], q.shape[2]),
+                device=q.device,
+                dtype=torch.float32)
+            grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+            fn = lambda: triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd_triton)
             if mode == "bwd":
                 o = fn()
                 do = torch.randn_like(o)
@@ -908,7 +895,7 @@ def main(_):
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/flash_attn"):
             os.makedirs(f"data/{GPU}/results/flash_attn")
-        df[0].to_pickle(fp)
+        df.to_pickle(fp)
 
 if __name__ == "__main__":
     app.run(main)
