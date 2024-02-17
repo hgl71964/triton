@@ -25,5 +25,6 @@ for seed in $( seq $start $seeds ); do
                         --seed $seed \
                         --factor $factor \
                         --wl $workload
+                sleep 3
         done
 done

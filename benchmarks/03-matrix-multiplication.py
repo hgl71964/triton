@@ -32,18 +32,7 @@ def leaky_relu(x):
     return tl.where(x >= 0, x, 0.01 * x)
 
 
-def matmul(a, b, kernel, activation=""):
-    load = bool(FLAGS.load)
-    # Check constraints.
-    assert a.shape[1] == b.shape[0], "Incompatible dimensions"
-    assert a.is_contiguous(), "Matrix A must be contiguous"
-    assert b.is_contiguous(), "Matrix B must be contiguous"
-    M, K = a.shape
-    K, N = b.shape
-    # Allocates output.
-    c = torch.empty((M, N), device=a.device, dtype=a.dtype)
-    # 1D launch kernel where each block gets its own program.
-    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
+def matmul(a, b, c, kernel, M, N, K, grid, load, activation=""):
     kernel[grid](
         a, b, c,  #
         M, N, K,  #
@@ -53,7 +42,7 @@ def matmul(a, b, kernel, activation=""):
         ACTIVATION=activation,  #
 
         #
-        load_dir=f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}' if load else None,
+        load_dir=load,
     )
     return c
 
@@ -69,6 +58,7 @@ def main(_):
     M, N, K = wl, wl, wl * factor
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
+    c = torch.empty((M, N), device=a.device, dtype=a.dtype)
 
     @fgk_autotune(
         configs=[
@@ -175,7 +165,9 @@ def main(_):
         c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
         tl.store(c_ptrs, c, mask=c_mask)
 
-    triton_output = matmul(a, b, matmul_kernel, "leaky_relu")
+    load =f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}' if  bool(FLAGS.load) else None
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
+    triton_output = matmul(a, b, c, matmul_kernel, M, N, K, grid, load, "leaky_relu")
     torch_output = torch.nn.functional.leaky_relu(torch.matmul(a, b))
 
     print(f"triton_output={triton_output}")
@@ -285,18 +277,7 @@ def main(_):
         c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
         tl.store(c_ptrs, c, mask=c_mask)
 
-    def triton_matmul(a, b, activation=""):
-        load = bool(FLAGS.load)
-        # Check constraints.
-        assert a.shape[1] == b.shape[0], "Incompatible dimensions"
-        assert a.is_contiguous(), "Matrix A must be contiguous"
-        assert b.is_contiguous(), "Matrix B must be contiguous"
-        M, K = a.shape
-        K, N = b.shape
-        # Allocates output.
-        c = torch.empty((M, N), device=a.device, dtype=a.dtype)
-        # 1D launch kernel where each block gets its own program.
-        grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
+    def triton_matmul(a, b, c, M, N, K, grid, activation=""):
         triton_matmul_kernel[grid](
             a, b, c,  #
             M, N, K,  #
@@ -339,14 +320,17 @@ def main(_):
         print(f'[BENCH]: {provider}; {M}; {N}; {K}')
         a = torch.randn((M, K), device='cuda', dtype=torch.float16)
         b = torch.randn((K, N), device='cuda', dtype=torch.float16)
-        # quantiles = [0.5, 0.2, 0.8]
+        c = torch.empty((M, N), device=a.device, dtype=a.dtype)
+        grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
+        load =f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
         quantiles = None
+
         if provider == 'cublas':
             ms = triton.testing.do_bench(lambda: torch.nn.functional.leaky_relu(torch.matmul(a, b)),warmup=100, rep=100,  quantiles=quantiles)
         if provider == 'fgk':
-            ms = triton.testing.do_bench(lambda: matmul(a, b, matmul_kernel, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
+            ms = triton.testing.do_bench(lambda: matmul(a, b, c, matmul_kernel, M, N, K, grid, load, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         if provider == 'triton':
-            ms = triton.testing.do_bench(lambda: triton_matmul(a, b, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
+            ms = triton.testing.do_bench(lambda: triton_matmul(a, b, c, M, N, K, grid, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
         return perf(ms)
 
@@ -354,7 +338,7 @@ def main(_):
     if isinstance(df, list):
         assert len(df) == 1, f'expected 1 row, got {len(df)}'
         df = df[0]
-    fp = f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}.pkl"
+    fp = f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}_{FLAGS.seed}.pkl"
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/mm_leakyReLU"):
             os.makedirs(f"data/{GPU}/results/mm_leakyReLU")

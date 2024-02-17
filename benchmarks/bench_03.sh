@@ -13,18 +13,21 @@ workloads=(
         4096
 
         8192
-        16384
+        # 16384
      )
 
-for workload in "${workloads[@]}"; do
-        echo
-        echo "workload ${workload}; seed ${seed}: "
-        echo
-        python benchmarks/03-matrix-multiplication.py \
-                --n_tests $test \
-                --factor $factor \
-                --wl $workload \
-                --load 1 \
-                --bench 1
-        sleep 3
+for seed in $( seq 1 10 ); do
+        for workload in "${workloads[@]}"; do
+                echo
+                echo "workload ${workload}; seed ${seed}: "
+                echo
+                python benchmarks/03-matrix-multiplication.py \
+                        --seed $seed \
+                        --n_tests $test \
+                        --factor $factor \
+                        --wl $workload \
+                        --load 1 \
+                        --bench 1
+                sleep 3
+        done
 done

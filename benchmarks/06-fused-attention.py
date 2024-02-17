@@ -904,7 +904,7 @@ def main(_):
     if isinstance(df, list):
         assert len(df) == 1, f'expected 1 row, got {len(df)}'
         df = df[0]
-    fp = f"data/{GPU}/results/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}.pkl"
+    fp = f"data/{GPU}/results/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}_{FLAGS.seed}.pkl"
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/flash_attn"):
             os.makedirs(f"data/{GPU}/results/flash_attn")
