@@ -253,6 +253,10 @@ def test_via_cubin(
             okss.extend(oks)
             torch.cuda.empty_cache()  # free test memory for one test
 
+            if not np.all(oks):
+                # early stop
+                break
+
         passes = sum(okss)
         total = len(okss)
         if np.all(okss):
