@@ -28,7 +28,7 @@ HEADs=(
         32
         64
         128
-        256
+        # 256
      )
 
 for seed in $( seq $start $seeds ); do
