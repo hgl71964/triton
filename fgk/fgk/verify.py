@@ -37,7 +37,8 @@ def gen_test_samples(
                 if i == ret_ptr:
                     arg = torch.empty_like(inp)
                 else:
-                    arg = torch.randn_like(inp).uniform_(0, 1)
+                    # arg = torch.randn_like(inp).uniform_(0, 1)
+                    arg = torch.randn_like(inp)
             else:
                 arg = deepcopy(inp)
 

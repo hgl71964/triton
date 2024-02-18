@@ -20,7 +20,7 @@ flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("wl", 1024, "workload of chosen")
 flags.DEFINE_integer("factor", 4, "")
 flags.DEFINE_integer("n_tests", 100, "num test samples")
-flags.DEFINE_integer("load", 0, "")
+flags.DEFINE_string("load", None, "")
 flags.DEFINE_integer("bench", 0, "whether to bench")
 
 GPU = get_gpu_name()
@@ -165,9 +165,14 @@ def main(_):
         c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
         tl.store(c_ptrs, c, mask=c_mask)
 
-    load =f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}' if  bool(FLAGS.load) else None
+    if FLAGS.load is None:
+        load_dir = None
+    elif FLAGS.load == "auto":
+        load_dir = f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
+    else:
+        load_dir = FLAGS.load
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
-    triton_output = matmul(a, b, c, matmul_kernel, M, N, K, grid, load, "leaky_relu")
+    triton_output = matmul(a, b, c, matmul_kernel, M, N, K, grid, load_dir, "leaky_relu")
     torch_output = torch.nn.functional.leaky_relu(torch.matmul(a, b))
 
     print(f"triton_output={triton_output}")
@@ -322,13 +327,18 @@ def main(_):
         b = torch.randn((K, N), device='cuda', dtype=torch.float16)
         c = torch.empty((M, N), device=a.device, dtype=a.dtype)
         grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
-        load =f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
+        if FLAGS.load is None:
+            load_dir = None
+        elif FLAGS.load == "auto":
+            load_dir = f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
+        else:
+            load_dir = FLAGS.load
         quantiles = None
 
         if provider == 'cublas':
             ms = triton.testing.do_bench(lambda: torch.nn.functional.leaky_relu(torch.matmul(a, b)),warmup=100, rep=100,  quantiles=quantiles)
         if provider == 'fgk':
-            ms = triton.testing.do_bench(lambda: matmul(a, b, c, matmul_kernel, M, N, K, grid, load, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
+            ms = triton.testing.do_bench(lambda: matmul(a, b, c, matmul_kernel, M, N, K, grid, load_dir, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         if provider == 'triton':
             ms = triton.testing.do_bench(lambda: triton_matmul(a, b, c, M, N, K, grid, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)

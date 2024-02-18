@@ -45,7 +45,7 @@ for seed in $( seq 1 10 ); do
                                                 --H $H \
                                                 --D_HEAD $HEAD \
                                                 --wl $workload \
-                                                --load 1 \
+                                                --load auto \
                                                 --bench 1
                                         sleep 3
                                 done

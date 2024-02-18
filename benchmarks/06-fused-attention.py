@@ -25,7 +25,7 @@ flags.DEFINE_integer("flash", 0, "whether to use flash attention")
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("n_tests", 100, "")
 flags.DEFINE_integer("n_choices", 1, "+-n choices")
-flags.DEFINE_integer("load", 0, "whether to load")
+flags.DEFINE_string("load", None, "")
 flags.DEFINE_integer("bench", 0, "whether to bench")
 
 # workload
@@ -755,7 +755,12 @@ def main(_):
         dtype=torch.float32)
     BLOCK_M=128
     grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-    load_dir = f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}' if bool(FLAGS.load) else None
+    if FLAGS.load is None:
+        load_dir = None
+    elif FLAGS.load == "auto":
+        load_dir = f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}'
+    else:
+        load_dir = FLAGS.load
     fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd, load_dir)
     # tri_out = triton_attn_forward(q, k, v, o, causal, sm_scale, _attn_fwd_triton)
 
@@ -845,7 +850,12 @@ def main(_):
                 device=q.device,
                 dtype=torch.float32)
             grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-            load_dir = f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}'
+            if FLAGS.load is None:
+                load_dir = None
+            elif FLAGS.load == "auto":
+                load_dir = f'data/{GPU}/flash_attn/{FLAGS.Z}_{FLAGS.H}_{FLAGS.wl}_{FLAGS.D_HEAD}'
+            else:
+                load_dir = FLAGS.load
             fn = lambda: attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd, load_dir)
             if mode == "bwd":
                 o = fn()

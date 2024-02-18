@@ -26,7 +26,7 @@ for seed in $( seq 1 10 ); do
                         --n_tests $test \
                         --factor $factor \
                         --wl $workload \
-                        --load 1 \
+                        --load auto \
                         --bench 1
                 sleep 3
         done
