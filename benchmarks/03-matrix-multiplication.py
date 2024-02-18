@@ -310,10 +310,12 @@ def main(_):
             x_vals=[M],
 
             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
-            # Possible values for `line_arg`
+
             line_vals=['cublas', 'fgk', 'triton'],
-            # Label name for the lines
             line_names=['cuBLAS', "FGK", "Triton"],
+            # line_vals=['triton', 'fgk', 'cublas'],
+            # line_names=['Triton', "FGK", "cuBLAS"],
+
             # Line styles
             styles=[('red', '-'), ('green', '-'), ('blue', '-')],
             ylabel="TFLOPS",  # Label name for the y-axis

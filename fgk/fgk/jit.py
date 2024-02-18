@@ -334,6 +334,9 @@ class ASMJITFunction(JITFunction):
                     cubin_dir_path=load_dir,
                     n_test_samples=self.n_test_samples,
                 )
+            warn = '\033[93m'
+            end = '\033[0m'
+            print(f"{warn}SIP JIT{end}")
             self.search_cache[device][key] = bin
 
         bin = self.search_cache[device][key]
