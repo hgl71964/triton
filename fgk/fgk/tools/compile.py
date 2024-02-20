@@ -208,7 +208,8 @@ if __name__ == "__main__":
     }
     for ext in ['h', 'c']:
         template_path = Path(
-            triton.__file__).parent / "tools" / f"compile.{ext}"  # fetch stub file
+            triton.__file__
+        ).parent / "tools" / f"compile.{ext}"  # fetch stub file
         # template_path = Path(__file__).parent / f"compile.{ext}"
         with out_path.with_suffix(f".{sig_hash}_{suffix}.{ext}").open(
                 "w") as fp:
