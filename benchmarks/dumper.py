@@ -3,10 +3,6 @@ import pickle
 import tempfile
 import time
 
-import torch
-import triton
-import triton.language as tl
-
 import random
 import numpy as np
 
@@ -26,15 +22,6 @@ FLAGS = flags.FLAGS
 # kernel
 flags.DEFINE_string("f", None, "")
 flags.DEFINE_string("save", None, "")
-
-flags.DEFINE_integer("dump", 0, "whether to dump")
-flags.DEFINE_integer("hack", 0, "whether to hack")
-flags.DEFINE_integer("seed", 1337, "")
-flags.DEFINE_integer("n_tests", 100, "")
-flags.DEFINE_integer("n_choices", 1, "+-n choices")
-flags.DEFINE_integer("load", 0, "whether to load")
-flags.DEFINE_integer("bench", 0, "whether to bench")
-
 
 def main(_):
 
