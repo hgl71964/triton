@@ -57,45 +57,13 @@ pip install ninja cmake wheel; # build-time dependencies
 pip install -e python
 ```
 
-# Building with a custom LLVM
+# Building 
 
-Triton uses LLVM to generate code for GPUs and CPUs.  Normally, the Triton build
-downloads a prebuilt LLVM, but you can also build LLVM from source and use that.
+1. build triton; in setup, ensure the ptxas, cuobjdump etc version matches the host version
 
-LLVM does not have a stable API, so the Triton build will not work at an
-arbitrary LLVM version.
+2. build pytorch; note that pytorch also needs to match the version
 
-1. Find the version of LLVM that Triton builds against.  Check `python/setup.py`
-   for a line like
-
-       rev = "b1115f8c"
-
-   This means that the version of Triton you have builds against
-   [LLVM](https://github.com/llvm/llvm-project) b1115f8c.
-
-2. `git checkout` LLVM at this revision.  Optionally, make additional
-   modifications to LLVM.
-
-3. [Build LLVM](https://llvm.org/docs/CMake.html).  For example, you might run
-
-       $ cd $HOME/llvm-project  # your clone of LLVM.
-       $ mkdir build
-       $ cd build
-       $ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON  ../llvm -DLLVM_ENABLE_PROJECTS="mlir;llvm"
-       $ ninja
-
-4. Grab a snack, this will take a while.
-
-5. Build Triton as above, but set the following environment variables.
-
-       # Modify as appropriate to point to your LLVM build.
-       $ export LLVM_BUILD_DIR=$HOME/llvm-project/build
-
-       $ cd <triton install>
-       $ LLVM_INCLUDE_DIRS=$LLVM_BUILD_DIR/include \
-         LLVM_LIBRARY_DIR=$LLVM_BUILD_DIR/lib \
-         LLVM_SYSPATH=$LLVM_BUILD_DIR \
-         pip install -e python
+3. pip uninstall triton (install by pytorch); and re-build
 
 # Tips for building
 
@@ -122,43 +90,6 @@ arbitrary LLVM version.
       Ctrl + P` on Windows/Linux) and open `C/C++: Edit Configurations (UI)`.
     - Open "Advanced Settings" and paste the full path to
       `compile_commands.json` into the "Compile Commands" textbox.
-
-# Running tests
-
-There currently isn't a turnkey way to run all the Triton tests, but you can
-follow the following recipe.
-
-```shell
-# One-time setup.  Note we have to reinstall local Triton because torch
-# overwrites it with the public version.
-$ pip install scipy numpy torch pytest lit && pip install -e python
-
-# Run Python tests using your local GPU.
-$ python3 -m pytest python/test/unit
-
-# Move to builddir.  Fill in <...> with the full path, e.g.
-# `cmake.linux-x86_64-cpython-3.11`.
-$ cd python/build/cmake<...>
-
-# Run C++ unit tests.
-$ ninja test
-
-# Run lit tests.
-$ lit test
-```
-
-# Changelog
-
-Version 2.0 is out! New features include:
-- Many, many bug fixes
-- Performance improvements
-- Backend rewritten to use MLIR
-- Support for kernels that contain back-to-back matmuls (e.g., flash attention)
-
-# Contributing
-
-Community contributions are more than welcome, whether it be to fix bugs or to add new features at [github](https://github.com/openai/triton/). For more detailed instructions, please visit our [contributor's guide](CONTRIBUTING.md).
-
 
 # Compatibility
 
