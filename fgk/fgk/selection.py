@@ -32,11 +32,10 @@ def run_selection(
     cubin_dir_path, n_test_samples,
 ):
 
-    rankings = {}
     if cubin_dir_path.endswith('.cubin'):
-
         # NOTE: we want the kernel section substituted by the hacked cubin;
         # and everything else from the standard cubin
+        # for example, manual scheduling
         with open(cubin_dir_path, 'rb') as f:
             hacked_cubin = f.read()
 
@@ -72,20 +71,29 @@ def run_selection(
         cap = CuAsmParser()
         cap.parse_from_buffer(standard_sass)
         cubin = cap.dump_cubin()
+        ok = True  # skip verification
 
     else:
-        for i, fn in enumerate(os.listdir(cubin_dir_path)):
-            if fn == 'cache_config.pkl':
-                continue
-            if not fn.endswith('.pkl'):
-                continue
-
-            with open(os.path.join(cubin_dir_path, fn), 'rb') as f:
+        rankings = {}
+        if cubin_dir_path.endswith('.pkl'):
+            # specified a record optimized by fgk
+            with open(cubin_dir_path, 'rb') as f:
                 data = pickle.load(f)
-            rankings[i] = data
+            rankings[0] = data
+        else:
+            # select a list of record in the search result directory
+            for i, fn in enumerate(os.listdir(cubin_dir_path)):
+                if fn == 'cache_config.pkl':
+                    continue
+                if not fn.endswith('.pkl'):
+                    continue
+
+                with open(os.path.join(cubin_dir_path, fn), 'rb') as f:
+                    data = pickle.load(f)
+                rankings[i] = data
 
         if len(rankings) == 0:
-            raise RuntimeError('no valid cubin found')
+            raise RuntimeError(f'no valid cubin found in {cubin_dir_path}')
 
         # for run, data in sorted(rankings.items(),
         #                         key=lambda x: x[1]['final_perf'],
@@ -137,6 +145,8 @@ def run_selection(
             else:
                 logger.warning(f'run {run} verified failed; final perf: {final_perf:.2f}; init perf: {init_perf:.2f}; improvement: {improvement*100:.2f}%')
 
+    if not ok:
+        raise RuntimeError(f'verification failed for kernel in {cubin_dir_path}')
 
     opt_asm = {
         'cubin': cubin,

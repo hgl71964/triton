@@ -9,10 +9,6 @@ import numpy as np
 # asm (add CuAsm to PYTHONPATH!)
 from CuAsm.CubinFile import CubinFile
 
-from fgk.jit import search, jit
-from fgk.autotuner import autotune as fgk_autotune
-from fgk.utils.gpu_utils import get_gpu_name, get_gpu_cc
-
 from absl import app
 from absl import flags
 
