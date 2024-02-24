@@ -99,8 +99,12 @@ def run_selection(
         #                         key=lambda x: x[1]['final_perf'],
         #                         reverse=True):
         #     print(f'run {run}; perf: {data["final_perf"]:.2f}:{data["init_perf"]:.2f}')
+        test_all = False
+        if os.getenv("SIP_TESTALL", "0") == "1":
+            test_all = True
 
-        # start verify from the best
+        # run verificaiton greedily
+        cnt = 0
         for run, data in sorted(rankings.items(),
                                 key=lambda x: x[1]['final_perf'],
                                 reverse=True):
@@ -140,10 +144,16 @@ def run_selection(
             init_perf = data['init_perf']
             improvement = (final_perf - init_perf) / init_perf
             if ok:
+                cnt += 1
                 logger.info(f'run {run} verified ok; final perf: {final_perf:.2f}; init perf: {init_perf:.2f}; improvement: {improvement*100:.2f}%')
-                break
+                if not test_all:
+                    break
             else:
                 logger.warning(f'run {run} verified failed; final perf: {final_perf:.2f}; init perf: {init_perf:.2f}; improvement: {improvement*100:.2f}%')
+
+    if test_all:
+        logger.info(f'verified {cnt}/{len(rankings)} kernels')
+
 
     if not ok:
         raise RuntimeError(f'verification failed for kernel in {cubin_dir_path}')

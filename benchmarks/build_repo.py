@@ -61,7 +61,8 @@ def main(_):
 
         elif FLAGS.d is not None:
             directory = FLAGS.d
-            so_files = [f for f in os.listdir(directory) if f.endswith('.so')]
+            # so_files = [f for f in os.listdir(directory) if f.endswith('.so')]
+            so_files = [f for f in os.listdir(directory)]
 
             for i, so_file in enumerate(so_files):
                 inf = os.path.join(directory, so_file)

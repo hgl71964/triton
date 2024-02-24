@@ -218,10 +218,12 @@ def test_via_cubin(
     # return True
     bin = fgk_CompiledKernel(so_path, metadata, asm)
 
+    batch_size = int(os.getenv("SIP_TESTBATCH", "1"))
+
     # use hint to generate test cases
     if ret_ptr is not None:
         okss = []
-        for _ in range(n_test_samples):
+        for _ in range(0, n_test_samples, batch_size):
             test_samples = gen_test_samples(
                 bin,
                 non_constexpr_arg_values,
@@ -232,7 +234,7 @@ def test_via_cubin(
                 enter_hook,
                 exit_hook,
                 # n_test_samples,
-                1,
+                batch_size,
                 ret_ptr,
             )
             opt_asm = {
