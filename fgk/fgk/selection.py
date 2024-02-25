@@ -32,6 +32,7 @@ def run_selection(
     cubin_dir_path, n_test_samples,
 ):
 
+    t1 = time.perf_counter()
     if cubin_dir_path.endswith('.cubin'):
         # NOTE: we want the kernel section substituted by the hacked cubin;
         # and everything else from the standard cubin
@@ -95,6 +96,7 @@ def run_selection(
         if len(rankings) == 0:
             raise RuntimeError(f'no valid cubin found in {cubin_dir_path}')
 
+        logger.info(f'found {len(rankings)} cubins in {cubin_dir_path}')
         # for run, data in sorted(rankings.items(),
         #                         key=lambda x: x[1]['final_perf'],
         #                         reverse=True):
@@ -150,6 +152,9 @@ def run_selection(
                     break
             else:
                 logger.warning(f'run {run} verified failed; final perf: {final_perf:.2f}; init perf: {init_perf:.2f}; improvement: {improvement*100:.2f}%')
+    
+    t2 = time.perf_counter()
+    logger.info(f'verification time: {t2 - t1:.2f}s')
 
     if test_all:
         logger.info(f'verified {cnt}/{len(rankings)} kernels')

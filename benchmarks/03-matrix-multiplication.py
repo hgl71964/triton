@@ -59,6 +59,7 @@ def main(_):
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
+    c_ref = torch.empty((M, N), device=a.device, dtype=a.dtype)
 
     @fgk_autotune(
         configs=[
@@ -165,22 +166,6 @@ def main(_):
         c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
         tl.store(c_ptrs, c, mask=c_mask)
 
-    if FLAGS.load is None:
-        load_dir = None
-    elif FLAGS.load == "auto":
-        load_dir = f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
-    else:
-        load_dir = FLAGS.load
-    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
-    triton_output = matmul(a, b, c, matmul_kernel, M, N, K, grid, load_dir, "leaky_relu")
-    torch_output = torch.nn.functional.leaky_relu(torch.matmul(a, b))
-
-    print(f"triton_output={triton_output}")
-    print(f"torch_output={torch_output}")
-    if torch.allclose(triton_output, torch_output, atol=1e-2, rtol=0):
-        print("✅ Triton and Torch match")
-    else:
-        print("❌ Triton and Torch differ")
 
     @triton.autotune(
         configs=[
@@ -292,6 +277,25 @@ def main(_):
             ACTIVATION=activation,  #
         )
         return c
+
+    if FLAGS.load is None:
+        load_dir = None
+    elif FLAGS.load == "auto":
+        load_dir = f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
+    else:
+        load_dir = FLAGS.load
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
+    sip_out = matmul(a, b, c, matmul_kernel, M, N, K, grid, load_dir, "leaky_relu")
+    triton_output = triton_matmul(a, b, c_ref, M, N, K, grid, "leaky_relu")
+    torch_output = torch.nn.functional.leaky_relu(torch.matmul(a, b))
+
+    # print(f"sip_out={sip_out}")
+    # print(f"triton_output={triton_output}")
+    # print(torch_output)
+    if torch.allclose(sip_out, triton_output, atol=1e-2, rtol=0):
+        print("✅ Triton and Torch match")
+    else:
+        print("❌ Triton and Torch differ")
 
     # benchmark
     if not bool(FLAGS.bench):

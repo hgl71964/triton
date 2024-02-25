@@ -1,6 +1,8 @@
 #! /bin/bash
 
 # config
+start=${1:-1}
+seeds=${2:-10}
 test=500
 workloads=(
         16384
@@ -30,7 +32,7 @@ HEADs=(
         128
      )
 
-for seed in $( seq 1 10 ); do
+for seed in $( seq $start $seeds ); do
         for Z in "${Zs[@]}"; do
                 for H in "${Hs[@]}"; do
                         for HEAD in "${HEADs[@]}"; do
