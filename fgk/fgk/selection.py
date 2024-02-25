@@ -91,7 +91,8 @@ def run_selection(
 
                 with open(os.path.join(cubin_dir_path, fn), 'rb') as f:
                     data = pickle.load(f)
-                rankings[i] = data
+
+                rankings[fn] = data
 
         if len(rankings) == 0:
             raise RuntimeError(f'no valid cubin found in {cubin_dir_path}')
@@ -152,7 +153,7 @@ def run_selection(
                     break
             else:
                 logger.warning(f'run {run} verified failed; final perf: {final_perf:.2f}; init perf: {init_perf:.2f}; improvement: {improvement*100:.2f}%')
-    
+
     t2 = time.perf_counter()
     logger.info(f'verification time: {t2 - t1:.2f}s')
 

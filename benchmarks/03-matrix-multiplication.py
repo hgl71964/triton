@@ -293,9 +293,9 @@ def main(_):
     # print(f"triton_output={triton_output}")
     # print(torch_output)
     if torch.allclose(sip_out, triton_output, atol=1e-2, rtol=0):
-        print("✅ Triton and Torch match")
+        print("✅ Triton and SIP match")
     else:
-        print("❌ Triton and Torch differ")
+        print("❌ Triton and SIP differ")
 
     # benchmark
     if not bool(FLAGS.bench):
